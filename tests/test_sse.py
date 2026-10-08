@@ -113,3 +113,14 @@ def test_a_multi_line_event_below_the_cap_is_parsed() -> None:
     chunk = b'event: values\ndata: {"a":\ndata: "' + b"x" * 700 + b'"}\n\n'
 
     assert parser.feed(chunk) == [SseEvent("values", {"a": "x" * 700})]
+
+
+def test_several_small_events_in_one_chunk_above_the_cap_parse_fine() -> None:
+    # The cap is about one event; a chunk may carry many complete events whose sum exceeds it.
+    parser = SseParser(max_event_bytes=100)
+    event = b'event: values\ndata: {"values":[1,2,3,4,5,6,7]}\n\n'
+    assert len(event) == 48  # 4 x 48 = 192 bytes in one chunk, cap 100
+
+    events = parser.feed(event * 4)
+
+    assert events == [SseEvent("values", {"values": [1, 2, 3, 4, 5, 6, 7]})] * 4

@@ -5,6 +5,7 @@ from __future__ import annotations
 import attr
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ecopulse import async_remove_config_entry_device
@@ -71,7 +72,10 @@ async def test_a_removed_aggregate_removes_its_device_and_entities(
 
 
 async def test_an_empty_catalog_removes_nothing(
-    hass: HomeAssistant, loaded_entry: MockConfigEntry, gateway: FakeGateway
+    hass: HomeAssistant,
+    loaded_entry: MockConfigEntry,
+    gateway: FakeGateway,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     # A push that renders no devices (or a projection bug) must not wipe the user's entity
     # customisations and the cell entities they enabled by hand.
@@ -86,6 +90,7 @@ async def test_an_empty_catalog_removes_nothing(
     assert _registry_ids(hass, loaded_entry) == before
     assert device(hass, BATTERY_DEVICE) is not None
     assert state(hass, SOC).state == "unavailable"
+    assert "serves no devices" in caplog.text  # counterpart of the pending-catalog test
 
 
 async def test_a_platform_move_removes_the_entry_on_the_old_platform(

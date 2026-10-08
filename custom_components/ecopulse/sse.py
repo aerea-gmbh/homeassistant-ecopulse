@@ -51,7 +51,8 @@ class SseParser:
             event = self._process_line(raw.rstrip(b"\r").decode("utf-8", errors="replace"))
             if event is not None:
                 events.append(event)
-            self._check_size()
+        # After the loop the buffer holds only the undispatched event's partial line, and
+        # _data_bytes its data lines: exactly one event, which is what the cap is about.
         self._check_size()
         return events
 

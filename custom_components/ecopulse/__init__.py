@@ -67,7 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> 
     if catalog.devices:
         _register_gateway_device(hass, entry, catalog)
         _remove_stale_registry_entries(hass, entry, catalog)
-    else:
+    elif catalog.revision:  # served by the gateway, not the pending stand-in
         # Never prune on an empty catalog (a push that rendered nothing, a projection bug, the
         # pending catalog above): it would wipe every customisation and hand-enabled entity.
         _LOGGER.warning("The gateway serves no devices; keeping all existing entities")

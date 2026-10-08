@@ -305,7 +305,11 @@ async def test_the_backoff_grows_while_reconnects_fail(
 
 
 async def test_setup_against_a_gateway_without_ha_enabled_waits_retry_later_then_loads(
-    hass: HomeAssistant, gateway: FakeGateway, config_entry: MockConfigEntry, fast_backoff: None
+    hass: HomeAssistant,
+    gateway: FakeGateway,
+    config_entry: MockConfigEntry,
+    fast_backoff: None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     # Contract errors[404].client = retry-later: the entry loads and the coordinator retries
     # every 300 s (patched to 0.05 s), instead of HA's own setup-retry schedule.
@@ -314,6 +318,8 @@ async def test_setup_against_a_gateway_without_ha_enabled_waits_retry_later_then
 
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     assert config_entry.state is ConfigEntryState.LOADED
+    # The pending stand-in is not "a gateway serving no devices" (that warning is for a real one).
+    assert "serves no devices" not in caplog.text
     assert er.async_entries_for_config_entry(er.async_get(hass), config_entry.entry_id) == []
 
     gateway.enabled = True
