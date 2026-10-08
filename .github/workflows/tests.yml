@@ -1,0 +1,32 @@
+# Mirror of the GitLab test job, so pull requests on the GitHub mirror are checked too.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.13"
+            requirements: requirements_test_min.txt
+            constraints: ci/constraints-2025.10.4.txt
+          - python: "3.14"
+            requirements: requirements_test.txt
+            constraints: ci/constraints-2026.10.0.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -c "${{ matrix.constraints }}" -r "${{ matrix.requirements }}"
+      - run: ruff check . && ruff format --check .
+        if: matrix.python == '3.14'
+      - run: pytest

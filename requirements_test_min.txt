@@ -1,0 +1,6 @@
+# The minimum Home Assistant this integration supports (hacs.json: 2025.10.0; tested on the last 2025.10
+# patch, 2025.10.4, Python 3.13). Install with
+#   pip install -c ci/constraints-2025.10.4.txt -r requirements_test_min.txt
+pytest-homeassistant-custom-component==0.13.289
+# aiodns 3.5 (pinned by HA 2025.10) breaks against pycares 5, which HA's constraints leave open.
+pycares<5

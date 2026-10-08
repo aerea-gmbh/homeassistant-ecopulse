@@ -1,0 +1,29 @@
+# Runs on the public GitHub mirror only (GitLab CI is the gate for development, see .gitlab-ci.yml).
+# HACS' validator needs the GitHub API of the repository it checks, which is why it lives here.
+name: Validate
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # Until the integration has an entry in home-assistant/brands.
+          ignore: brands

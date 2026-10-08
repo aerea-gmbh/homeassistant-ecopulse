@@ -1,0 +1,560 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "basePath": "/api/ha/v1",
+  "auth": {
+    "header": "Authorization",
+    "scheme": "Bearer",
+    "realm": "ecopulse-ha",
+    "tokenPrefix": "ecp_ha_",
+    "tokenRandomBytes": 32,
+    "tokenEncoding": "base64url",
+    "hashAlgorithm": "sha256",
+    "hashEncoding": "hex"
+  },
+  "scopes": [
+    "read",
+    "inputs",
+    "control"
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/info",
+      "scope": "read"
+    },
+    {
+      "method": "GET",
+      "path": "/catalog",
+      "scope": "read"
+    },
+    {
+      "method": "GET",
+      "path": "/stream",
+      "scope": "read"
+    }
+  ],
+  "reserved": {
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/inputs",
+        "scope": "inputs",
+        "slice": "S5"
+      },
+      {
+        "method": "POST",
+        "path": "/control",
+        "scope": "control",
+        "slice": "S8"
+      }
+    ],
+    "streamEvents": [
+      "command"
+    ]
+  },
+  "errors": [
+    {
+      "status": 401,
+      "code": "unauthorized",
+      "client": "reauth"
+    },
+    {
+      "status": 403,
+      "code": "insufficient_scope",
+      "client": "reauth"
+    },
+    {
+      "status": 404,
+      "code": "not_found",
+      "client": "retry-later"
+    },
+    {
+      "status": 429,
+      "code": "rate_limited",
+      "client": "honour-retry-after"
+    }
+  ],
+  "errorProperties": [
+    "code",
+    "message"
+  ],
+  "client": {
+    "actions": [
+      "reauth",
+      "retry-later",
+      "honour-retry-after"
+    ],
+    "retryLaterSeconds": 300,
+    "backoffInitialSeconds": 1,
+    "backoffMaxSeconds": 60,
+    "onSnapshotRevisionMismatch": "refetch",
+    "onUnknownValueId": "ignore"
+  },
+  "info": {
+    "properties": [
+      "apiVersion",
+      "supportedApiVersions",
+      "gatewayId",
+      "gatewayName",
+      "firmwareVersion",
+      "catalogRevision",
+      "scopes"
+    ]
+  },
+  "catalog": {
+    "properties": [
+      "apiVersion",
+      "catalogRevision",
+      "gateway",
+      "devices"
+    ],
+    "gatewayProperties": [
+      "id",
+      "name",
+      "firmwareVersion"
+    ],
+    "deviceProperties": [
+      "id",
+      "name",
+      "manufacturer",
+      "model",
+      "entities"
+    ],
+    "entityProperties": [
+      "uniqueId",
+      "name",
+      "platform",
+      "unit",
+      "deviceClass",
+      "stateClass",
+      "suggestedDisplayPrecision",
+      "entityCategory",
+      "enabledByDefault"
+    ],
+    "nullableDeviceProperties": [
+      "manufacturer",
+      "model"
+    ],
+    "nullableEntityProperties": [
+      "unit",
+      "deviceClass",
+      "stateClass",
+      "suggestedDisplayPrecision",
+      "entityCategory"
+    ]
+  },
+  "stream": {
+    "events": [
+      "snapshot",
+      "values",
+      "availability",
+      "catalog"
+    ],
+    "eventProperties": {
+      "snapshot": [
+        "catalogRevision",
+        "devices",
+        "values"
+      ],
+      "values": [
+        "values"
+      ],
+      "availability": [
+        "devices"
+      ],
+      "catalog": [
+        "catalogRevision"
+      ]
+    },
+    "valueProperties": [
+      "id",
+      "value",
+      "ts"
+    ],
+    "availabilityProperties": [
+      "id",
+      "available"
+    ],
+    "heartbeatSeconds": 15,
+    "clientDeadAfterSeconds": 45,
+    "retryMilliseconds": 5000,
+    "maxConcurrentStreams": 4,
+    "overflowPolicy": "evict-oldest"
+  },
+  "vocabulary": {
+    "platforms": [
+      "sensor",
+      "binary_sensor"
+    ],
+    "stateClasses": [
+      "measurement",
+      "total",
+      "total_increasing"
+    ],
+    "entityCategories": [
+      "diagnostic"
+    ]
+  },
+  "configBlock": {
+    "key": "homeAssistant",
+    "properties": [
+      "enabled",
+      "gatewayName",
+      "token",
+      "devices"
+    ],
+    "tokenProperties": [
+      "hash",
+      "algorithm",
+      "scopes"
+    ],
+    "deviceProperties": [
+      "edgeEntityType",
+      "edgeEntityId",
+      "id",
+      "name",
+      "manufacturer",
+      "model",
+      "entities"
+    ],
+    "entityProperties": [
+      "edgeIdentifier",
+      "uniqueId",
+      "name",
+      "platform",
+      "unit",
+      "deviceClass",
+      "stateClass",
+      "suggestedDisplayPrecision",
+      "entityCategory",
+      "enabledByDefault"
+    ],
+    "omittedMeansNull": true,
+    "localWriteKeepsStoredBlock": true
+  },
+  "zeroconf": {
+    "serviceType": "_ecopulse._tcp.local.",
+    "txtKeys": [
+      "id",
+      "api",
+      "path"
+    ]
+  },
+  "examples": {
+    "token": {
+      "token": "ecp_ha_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "hash": "e81483dd1b0e7b23e1d904d63e63f9371229b5d2a1440d0bdcda220c7c7a3ca6"
+    },
+    "configBlock": {
+      "homeAssistant": {
+        "enabled": true,
+        "gatewayName": "Haus Nord",
+        "token": {
+          "hash": "e81483dd1b0e7b23e1d904d63e63f9371229b5d2a1440d0bdcda220c7c7a3ca6",
+          "algorithm": "sha256",
+          "scopes": [
+            "read"
+          ]
+        },
+        "devices": [
+          {
+            "edgeEntityType": "Battery",
+            "edgeEntityId": "home-battery",
+            "id": "3f1c2a54-8d0e-4b7a-9c61-2e5f4a7b8c90",
+            "name": "Home battery",
+            "manufacturer": "Seplos",
+            "model": "SEPLOS_V3",
+            "entities": [
+              {
+                "edgeIdentifier": "soc",
+                "uniqueId": "0b6e1d2c-4a5f-4e3b-8c7d-9a1b2c3d4e5f",
+                "name": "State of charge",
+                "platform": "sensor",
+                "unit": "%",
+                "deviceClass": "battery",
+                "stateClass": "measurement",
+                "suggestedDisplayPrecision": 0,
+                "enabledByDefault": true
+              },
+              {
+                "edgeIdentifier": "batteryChargeEnergy",
+                "uniqueId": "1c7f2e3d-5b6a-4f4c-9d8e-0b2c3d4e5f60",
+                "name": "Battery charge energy",
+                "platform": "sensor",
+                "unit": "kWh",
+                "deviceClass": "energy",
+                "stateClass": "total_increasing",
+                "suggestedDisplayPrecision": 2,
+                "enabledByDefault": true
+              },
+              {
+                "edgeIdentifier": "cellTemperature01",
+                "uniqueId": "2d8a3f4e-6c7b-4a5d-8e9f-1c3d4e5f6071",
+                "name": "Cell temperature 01",
+                "platform": "sensor",
+                "unit": "°C",
+                "deviceClass": "temperature",
+                "stateClass": "measurement",
+                "suggestedDisplayPrecision": 1,
+                "entityCategory": "diagnostic",
+                "enabledByDefault": false
+              },
+              {
+                "edgeIdentifier": "chargeEnable",
+                "uniqueId": "3e9b4a5f-7d8c-4b6e-9f0a-2d4e5f607182",
+                "name": "Charge enable",
+                "platform": "binary_sensor",
+                "entityCategory": "diagnostic",
+                "enabledByDefault": false
+              }
+            ]
+          },
+          {
+            "edgeEntityType": "assistant",
+            "edgeEntityId": "wallbox",
+            "id": "7d3f8e9b-1b2a-4fac-9d4e-6b8293a41526",
+            "name": "wallbox",
+            "entities": [
+              {
+                "edgeIdentifier": "assistant.evse.setpoint_current",
+                "uniqueId": "6c2e7d8a-0a1f-4e9b-8c3d-5a7182930415",
+                "name": "Charge Current Setpoint",
+                "platform": "sensor",
+                "unit": "A",
+                "deviceClass": "current",
+                "stateClass": "measurement",
+                "suggestedDisplayPrecision": 1,
+                "entityCategory": "diagnostic",
+                "enabledByDefault": true
+              }
+            ]
+          },
+          {
+            "edgeEntityType": "Meter",
+            "edgeEntityId": "grid-meter",
+            "id": "4a0c5b6e-8e9d-4c7f-8a1b-3e5f60718293",
+            "name": "grid-meter",
+            "entities": [
+              {
+                "edgeIdentifier": "power",
+                "uniqueId": "5b1d6c7f-9f0e-4d8a-9b2c-4f6071829304",
+                "name": "Power",
+                "platform": "sensor",
+                "unit": "W",
+                "deviceClass": "power",
+                "stateClass": "measurement",
+                "suggestedDisplayPrecision": 0,
+                "enabledByDefault": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "info": {
+      "apiVersion": 1,
+      "supportedApiVersions": [
+        1
+      ],
+      "gatewayId": "gw-7f3a9c",
+      "gatewayName": "Haus Nord",
+      "firmwareVersion": "2026.10.1",
+      "catalogRevision": "9c1e4b7a2f05d863",
+      "scopes": [
+        "read"
+      ]
+    },
+    "catalog": {
+      "apiVersion": 1,
+      "catalogRevision": "9c1e4b7a2f05d863",
+      "gateway": {
+        "id": "gw-7f3a9c",
+        "name": "Haus Nord",
+        "firmwareVersion": "2026.10.1"
+      },
+      "devices": [
+        {
+          "id": "3f1c2a54-8d0e-4b7a-9c61-2e5f4a7b8c90",
+          "name": "Home battery",
+          "manufacturer": "Seplos",
+          "model": "SEPLOS_V3",
+          "entities": [
+            {
+              "uniqueId": "0b6e1d2c-4a5f-4e3b-8c7d-9a1b2c3d4e5f",
+              "name": "State of charge",
+              "platform": "sensor",
+              "unit": "%",
+              "deviceClass": "battery",
+              "stateClass": "measurement",
+              "suggestedDisplayPrecision": 0,
+              "entityCategory": null,
+              "enabledByDefault": true
+            },
+            {
+              "uniqueId": "1c7f2e3d-5b6a-4f4c-9d8e-0b2c3d4e5f60",
+              "name": "Battery charge energy",
+              "platform": "sensor",
+              "unit": "kWh",
+              "deviceClass": "energy",
+              "stateClass": "total_increasing",
+              "suggestedDisplayPrecision": 2,
+              "entityCategory": null,
+              "enabledByDefault": true
+            },
+            {
+              "uniqueId": "2d8a3f4e-6c7b-4a5d-8e9f-1c3d4e5f6071",
+              "name": "Cell temperature 01",
+              "platform": "sensor",
+              "unit": "°C",
+              "deviceClass": "temperature",
+              "stateClass": "measurement",
+              "suggestedDisplayPrecision": 1,
+              "entityCategory": "diagnostic",
+              "enabledByDefault": false
+            },
+            {
+              "uniqueId": "3e9b4a5f-7d8c-4b6e-9f0a-2d4e5f607182",
+              "name": "Charge enable",
+              "platform": "binary_sensor",
+              "unit": null,
+              "deviceClass": null,
+              "stateClass": null,
+              "suggestedDisplayPrecision": null,
+              "entityCategory": "diagnostic",
+              "enabledByDefault": false
+            }
+          ]
+        },
+        {
+          "id": "7d3f8e9b-1b2a-4fac-9d4e-6b8293a41526",
+          "name": "wallbox",
+          "manufacturer": null,
+          "model": null,
+          "entities": [
+            {
+              "uniqueId": "6c2e7d8a-0a1f-4e9b-8c3d-5a7182930415",
+              "name": "Charge Current Setpoint",
+              "platform": "sensor",
+              "unit": "A",
+              "deviceClass": "current",
+              "stateClass": "measurement",
+              "suggestedDisplayPrecision": 1,
+              "entityCategory": "diagnostic",
+              "enabledByDefault": true
+            }
+          ]
+        },
+        {
+          "id": "4a0c5b6e-8e9d-4c7f-8a1b-3e5f60718293",
+          "name": "grid-meter",
+          "manufacturer": null,
+          "model": null,
+          "entities": [
+            {
+              "uniqueId": "5b1d6c7f-9f0e-4d8a-9b2c-4f6071829304",
+              "name": "Power",
+              "platform": "sensor",
+              "unit": "W",
+              "deviceClass": "power",
+              "stateClass": "measurement",
+              "suggestedDisplayPrecision": 0,
+              "entityCategory": null,
+              "enabledByDefault": true
+            }
+          ]
+        }
+      ]
+    },
+    "stream": {
+      "snapshot": {
+        "catalogRevision": "9c1e4b7a2f05d863",
+        "devices": [
+          {
+            "id": "3f1c2a54-8d0e-4b7a-9c61-2e5f4a7b8c90",
+            "available": true
+          },
+          {
+            "id": "7d3f8e9b-1b2a-4fac-9d4e-6b8293a41526",
+            "available": true
+          },
+          {
+            "id": "4a0c5b6e-8e9d-4c7f-8a1b-3e5f60718293",
+            "available": true
+          }
+        ],
+        "values": [
+          {
+            "id": "0b6e1d2c-4a5f-4e3b-8c7d-9a1b2c3d4e5f",
+            "value": 87,
+            "ts": "2026-10-08T09:15:02.000Z"
+          },
+          {
+            "id": "1c7f2e3d-5b6a-4f4c-9d8e-0b2c3d4e5f60",
+            "value": 1234.56,
+            "ts": "2026-10-08T09:15:02.000Z"
+          },
+          {
+            "id": "2d8a3f4e-6c7b-4a5d-8e9f-1c3d4e5f6071",
+            "value": 21.4,
+            "ts": "2026-10-08T09:15:02.000Z"
+          },
+          {
+            "id": "3e9b4a5f-7d8c-4b6e-9f0a-2d4e5f607182",
+            "value": true,
+            "ts": "2026-10-08T09:15:02.000Z"
+          },
+          {
+            "id": "6c2e7d8a-0a1f-4e9b-8c3d-5a7182930415",
+            "value": null,
+            "ts": null
+          },
+          {
+            "id": "5b1d6c7f-9f0e-4d8a-9b2c-4f6071829304",
+            "value": null,
+            "ts": "2026-10-08T09:14:58.000Z"
+          }
+        ]
+      },
+      "values": {
+        "values": [
+          {
+            "id": "5b1d6c7f-9f0e-4d8a-9b2c-4f6071829304",
+            "value": -2310,
+            "ts": "2026-10-08T09:15:04.000Z"
+          },
+          {
+            "id": "3e9b4a5f-7d8c-4b6e-9f0a-2d4e5f607182",
+            "value": false,
+            "ts": "2026-10-08T09:15:04.000Z"
+          }
+        ]
+      },
+      "availability": {
+        "devices": [
+          {
+            "id": "4a0c5b6e-8e9d-4c7f-8a1b-3e5f60718293",
+            "available": false
+          }
+        ]
+      },
+      "catalog": {
+        "catalogRevision": "4d2a8e61b7c3f095"
+      }
+    },
+    "error": {
+      "code": "insufficient_scope",
+      "message": "This token lacks the scope 'inputs'."
+    },
+    "unauthorized": {
+      "status": 401,
+      "headers": {
+        "WWW-Authenticate": "Bearer realm=\"ecopulse-ha\""
+      },
+      "body": {
+        "code": "unauthorized",
+        "message": "Missing or invalid integration token."
+      }
+    }
+  }
+}
