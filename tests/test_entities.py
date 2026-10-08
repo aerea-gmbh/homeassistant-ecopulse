@@ -212,6 +212,9 @@ async def test_malformed_event_payloads_are_ignored_and_the_stream_lives_on(
 ) -> None:
     gateway.push("values", {"values": 5})
     gateway.push("values", {"values": ["x", {"value": 1}]})
+    gateway.push("values", {"values": [{"id": ["not", "hashable"], "value": 1}]})
+    gateway.push("values", {"values": [{"id": {"an": "object"}, "value": 1}]})
+    gateway.push("availability", {"devices": [{"id": ["x"], "available": False}]})
     gateway.push("availability", {"devices": 7})
     gateway.push("values", {"values": [{"id": GRID_POWER, "value": 9, "ts": "2026-10-08T09:17Z"}]})
 

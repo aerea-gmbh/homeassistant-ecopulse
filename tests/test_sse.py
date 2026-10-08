@@ -91,7 +91,25 @@ def test_a_large_snapshot_line_beyond_aiohttps_readline_limit_is_parsed() -> Non
 
 
 def test_an_unterminated_line_beyond_the_cap_is_a_protocol_error() -> None:
-    parser = SseParser(max_line_bytes=1024)
+    parser = SseParser(max_event_bytes=1024)
 
     with pytest.raises(SseProtocolError):
         parser.feed(b"data: " + b"x" * 2048)
+
+
+def test_many_data_lines_of_one_event_beyond_the_cap_are_a_protocol_error() -> None:
+    # Each line stays below the line cap, but the event never ends: the total is capped too.
+    parser = SseParser(max_event_bytes=1024)
+    for _ in range(9):
+        parser.feed(b"data: " + b"x" * 110 + b"\n")  # 999 bytes held, below the cap
+
+    with pytest.raises(SseProtocolError):
+        parser.feed(b"data: " + b"x" * 110 + b"\n")
+
+
+def test_a_multi_line_event_below_the_cap_is_parsed() -> None:
+    # Positive counterpart: the same parser and cap accept an event of several data lines.
+    parser = SseParser(max_event_bytes=1024)
+    chunk = b'event: values\ndata: {"a":\ndata: "' + b"x" * 700 + b'"}\n\n'
+
+    assert parser.feed(chunk) == [SseEvent("values", {"a": "x" * 700})]

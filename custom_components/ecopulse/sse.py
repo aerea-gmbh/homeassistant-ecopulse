@@ -15,9 +15,9 @@ from typing import Any
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_EVENT_NAME = "message"
-# A generous cap so a broken peer cannot grow the buffer without bound; a real snapshot of a
-# large plant is ~100 kB.
-DEFAULT_MAX_LINE_BYTES = 8 * 1024 * 1024
+# A generous cap on one event (its pending line plus its data lines) so a broken peer cannot grow
+# memory without bound; a real snapshot of a large plant is ~100 kB.
+DEFAULT_MAX_EVENT_BYTES = 8 * 1024 * 1024
 
 
 class SseProtocolError(Exception):
@@ -35,11 +35,12 @@ class SseEvent:
 class SseParser:
     """Incremental parser; ``feed`` returns the events completed by the chunk."""
 
-    def __init__(self, max_line_bytes: int = DEFAULT_MAX_LINE_BYTES) -> None:
-        self._max_line_bytes = max_line_bytes
+    def __init__(self, max_event_bytes: int = DEFAULT_MAX_EVENT_BYTES) -> None:
+        self._max_event_bytes = max_event_bytes
         self._buffer = bytearray()
         self._event_name: str | None = None
         self._data_lines: list[str] = []
+        self._data_bytes = 0
 
     def feed(self, chunk: bytes) -> list[SseEvent]:
         self._buffer.extend(chunk)
@@ -50,9 +51,13 @@ class SseParser:
             event = self._process_line(raw.rstrip(b"\r").decode("utf-8", errors="replace"))
             if event is not None:
                 events.append(event)
-        if len(self._buffer) > self._max_line_bytes:
-            raise SseProtocolError("event stream line exceeds the size limit")
+            self._check_size()
+        self._check_size()
         return events
+
+    def _check_size(self) -> None:
+        if self._data_bytes + len(self._buffer) > self._max_event_bytes:
+            raise SseProtocolError("event stream event exceeds the size limit")
 
     def _process_line(self, line: str) -> SseEvent | None:
         if not line:
@@ -65,6 +70,7 @@ class SseParser:
             self._event_name = value
         elif field == "data":
             self._data_lines.append(value)
+            self._data_bytes += len(value) + 1
         # "retry" is deliberately ignored (the integration has its own backoff), "id" is never
         # sent by the edge, and unknown fields are ignored as the SSE spec requires.
         return None
@@ -74,6 +80,7 @@ class SseParser:
         data_lines = self._data_lines
         self._event_name = None
         self._data_lines = []
+        self._data_bytes = 0
         if not data_lines:
             return None
         try:

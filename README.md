@@ -33,8 +33,7 @@ Assistant are planned.
 ## Installation via HACS
 
 1. In HACS, open the menu (three dots) > *Custom repositories*.
-2. Add `https://github.com/<github-org>/homeassistant-ecopulse` with category *Integration*.
-   <!-- TODO(#622): replace the placeholder with the public GitHub mirror once it exists. -->
+2. Add `https://github.com/aerea/homeassistant-ecopulse` with category *Integration*.
 3. Install *EcoPulse* and restart Home Assistant.
 
 Manual installation: copy `custom_components/ecopulse` into the `custom_components` folder of your Home Assistant

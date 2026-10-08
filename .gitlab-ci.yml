@@ -12,7 +12,17 @@
 stages:
   - test
 
+# Every runner of the group has run_untagged=false; without tags no job is ever picked up (review
+# HIGH-1: pipelines sat in pending). Same runner and #340 auto-cancel convention as the cloud repo.
+default:
+  tags:
+    - core01
+    - container
+  interruptible: true
+
 workflow:
+  auto_cancel:
+    on_new_commit: interruptible
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS

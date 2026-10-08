@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from contextlib import aclosing
 from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Any
@@ -24,7 +25,6 @@ from .api import (
     EcoPulseApiClient,
     EcoPulseAuthError,
     EcoPulseConnectionError,
-    EcoPulseError,
     EcoPulseNotEnabledError,
     EcoPulseRateLimitedError,
 )
@@ -120,22 +120,35 @@ class EcoPulseStreamCoordinator:
     # -- stream ----------------------------------------------------------------------------------
 
     @callback
-    def async_start(self) -> None:
+    def async_start(self, initial_wait: float = 0) -> None:
+        """Start the stream; ``initial_wait`` honours a 404/429 seen during setup."""
         self.stream_task = self._entry.async_create_background_task(
-            self.hass, self._async_run(), f"{self._entry.domain} stream {self.catalog.gateway_id}"
+            self.hass,
+            self._async_run(initial_wait),
+            f"{self._entry.domain} stream {self.catalog.gateway_id}",
         )
 
-    async def _async_run(self) -> None:
+    async def _async_run(self, initial_wait: float) -> None:
+        try:
+            if initial_wait:
+                await asyncio.sleep(initial_wait)
+            await self._async_stream_forever()
+        finally:
+            # Whatever ends the task (reauth, reload, unload, a bug), its entities must not
+            # keep showing the last values as available (ADR-230 §7).
+            self._set_connected(False)
+
+    async def _async_stream_forever(self) -> None:
         backoff = float(BACKOFF_INITIAL_SECONDS)
         while True:
-            error: EcoPulseError | None = None
+            error: Exception | None = None
             try:
-                async for event in self._client.async_stream():
-                    if await self._async_handle(event):
-                        backoff = float(BACKOFF_INITIAL_SECONDS)
+                async with aclosing(self._client.async_stream()) as events:
+                    async for event in events:
+                        if await self._async_handle(event):
+                            backoff = float(BACKOFF_INITIAL_SECONDS)
             except EcoPulseAuthError:
                 _LOGGER.warning("The gateway rejected the token; reauthentication required")
-                self._set_connected(False)
                 self._entry.async_start_reauth(self.hass)
                 return
             except _ReloadScheduled:
@@ -145,6 +158,11 @@ class EcoPulseStreamCoordinator:
                 EcoPulseNotEnabledError,
                 EcoPulseRateLimitedError,
             ) as err:
+                error = err
+            except Exception as err:
+                # Best effort by design: a bug in handling one event must not end the stream
+                # for good; log it, go unavailable and resync from a fresh snapshot.
+                _LOGGER.exception("Unexpected error in the EcoPulse stream, reconnecting")
                 error = err
             self._set_connected(False)
             wait = wait_after_failure(error, backoff)
@@ -204,7 +222,7 @@ class EcoPulseStreamCoordinator:
         stored = []
         for item in values:
             unique_id = item.get("id") if isinstance(item, dict) else None
-            if unique_id not in self._device_of:
+            if not isinstance(unique_id, str) or unique_id not in self._device_of:
                 continue  # contract onUnknownValueId: ignore, never create an entity
             self.values[unique_id] = SignalValue(item.get("value"), item.get("ts"))
             stored.append(unique_id)

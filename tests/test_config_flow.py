@@ -123,13 +123,14 @@ async def test_a_token_without_the_prefix_is_rejected_before_any_request(
     assert gateway.requests == []
 
 
-async def test_a_configured_gateway_aborts_and_takes_the_new_address(
+async def test_a_configured_gateway_aborts_and_takes_the_new_address_and_token(
     hass: HomeAssistant, gateway: FakeGateway
 ) -> None:
+    # e.g. the entry sits in reauth after a rotation and the user adds the gateway again
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="gw-7f3a9c",
-        data={CONF_HOST: "10.0.0.99", CONF_PORT: 8080, CONF_TOKEN: gateway.token},
+        data={CONF_HOST: "10.0.0.99", CONF_PORT: 8080, CONF_TOKEN: WRONG_TOKEN},
     )
     entry.add_to_hass(hass)
     flow_id = await _user_flow(hass)
@@ -140,6 +141,7 @@ async def test_a_configured_gateway_aborts_and_takes_the_new_address(
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_HOST] == gateway.host
     assert entry.data[CONF_PORT] == gateway.port
+    assert entry.data[CONF_TOKEN] == gateway.token
 
 
 def _discovery(gateway: FakeGateway, **properties: str) -> ZeroconfServiceInfo:

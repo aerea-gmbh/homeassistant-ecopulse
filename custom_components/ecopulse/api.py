@@ -86,6 +86,7 @@ class EcoPulseApiClient:
                 self._base / "stream",
                 headers={**self._headers, "Accept": "text/event-stream"},
                 timeout=timeout,
+                allow_redirects=False,
             ) as response:
                 _raise_for_status(response)
                 async for chunk in response.content.iter_any():
@@ -98,7 +99,10 @@ class EcoPulseApiClient:
         timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
         try:
             async with self._session.get(
-                self._base / path, headers=self._headers, timeout=timeout
+                self._base / path,
+                headers=self._headers,
+                timeout=timeout,
+                allow_redirects=False,  # the token only ever goes to the gateway typed in
             ) as response:
                 _raise_for_status(response)
                 data = await response.json()

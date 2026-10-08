@@ -103,6 +103,17 @@ class Catalog:
             devices=tuple(CatalogDevice.from_dict(d) for d in data.get("devices") or ()),
         )
 
+    @classmethod
+    def pending(cls, gateway_id: str, gateway_name: str) -> Catalog:
+        """Stand-in while the gateway answers 404/429; its empty revision matches no snapshot."""
+        return cls(
+            revision="",
+            gateway_id=gateway_id,
+            gateway_name=gateway_name,
+            firmware_version=None,
+            devices=(),
+        )
+
     def entities_for(self, platform: str) -> list[tuple[CatalogDevice, CatalogEntity]]:
         return [
             (device, entity)

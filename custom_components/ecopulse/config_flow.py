@@ -68,7 +68,9 @@ class EcoPulseConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[err.field] = err.error
             else:
                 await self.async_set_unique_id(info.gateway_id)
-                self._abort_if_unique_id_configured(updates={CONF_HOST: host, CONF_PORT: port})
+                self._abort_if_unique_id_configured(
+                    updates={CONF_HOST: host, CONF_PORT: port, CONF_TOKEN: token}
+                )
                 return self._create(info, host, port, token)
 
         defaults = user_input or {}

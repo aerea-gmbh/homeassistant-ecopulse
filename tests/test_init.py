@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 import copy
 from typing import Any
 from unittest.mock import patch
 
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
-from homeassistant.const import STATE_UNAVAILABLE
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_STATE_CHANGED, STATE_UNAVAILABLE
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -20,6 +22,7 @@ from custom_components.ecopulse.api import (
 )
 from custom_components.ecopulse.const import DOMAIN
 from custom_components.ecopulse.coordinator import next_backoff, wait_after_failure
+from custom_components.ecopulse.sse import SseEvent
 
 from .conftest import wait_until
 from .fake_gateway import FakeGateway
@@ -91,12 +94,10 @@ async def test_setup_with_a_rejected_token_starts_reauth(
 @pytest.mark.parametrize(
     "setup",
     [
-        lambda g: setattr(g, "enabled", False),
-        lambda g: setattr(g, "rate_limited_for", 5),
         lambda g: setattr(g, "forced_status", 500),
         lambda g: g.catalog["gateway"].update(id="gw-other"),
     ],
-    ids=["404-not-enabled", "429", "500", "another-gateway-at-this-address"],
+    ids=["500", "another-gateway-at-this-address"],
 )
 async def test_setup_retries_when_the_gateway_is_not_ready(
     hass: HomeAssistant, gateway: FakeGateway, config_entry: MockConfigEntry, setup: Any
@@ -301,3 +302,117 @@ async def test_the_backoff_grows_while_reconnects_fail(
         await gateway.wait_for_stream(2)
 
     assert backoffs[:4] == [0.01, 0.02, 0.04, 0.05]
+
+
+async def test_setup_against_a_gateway_without_ha_enabled_waits_retry_later_then_loads(
+    hass: HomeAssistant, gateway: FakeGateway, config_entry: MockConfigEntry, fast_backoff: None
+) -> None:
+    # Contract errors[404].client = retry-later: the entry loads and the coordinator retries
+    # every 300 s (patched to 0.05 s), instead of HA's own setup-retry schedule.
+    gateway.enabled = False
+    config_entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    assert config_entry.state is ConfigEntryState.LOADED
+    assert er.async_entries_for_config_entry(er.async_get(hass), config_entry.entry_id) == []
+
+    gateway.enabled = True
+    await wait_until(hass, lambda: _sensor_count(hass, config_entry) == 5)
+    await wait_until(hass, lambda: state(hass, SOC).state == "87")
+
+
+async def test_setup_while_rate_limited_honours_retry_after_before_the_first_attempt(
+    hass: HomeAssistant, gateway: FakeGateway, config_entry: MockConfigEntry, fast_backoff: None
+) -> None:
+    gateway.rate_limited_for = 1
+    config_entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    assert config_entry.state is ConfigEntryState.LOADED
+    requests_at_setup = len(gateway.requests)
+    gateway.rate_limited_for = None
+    await asyncio.sleep(0.5)
+    assert len(gateway.requests) == requests_at_setup  # still waiting out Retry-After: 1
+
+    await wait_until(hass, lambda: _sensor_count(hass, config_entry) == 5)
+
+
+def _sensor_count(hass: HomeAssistant, entry: MockConfigEntry) -> int:
+    return sum(
+        1
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if e.domain == "sensor"
+    )
+
+
+async def test_an_unexpected_error_makes_entities_unavailable_and_reconnects(
+    hass: HomeAssistant, loaded_entry: MockConfigEntry, gateway: FakeGateway
+) -> None:
+    coordinator = loaded_entry.runtime_data.coordinator
+    soc_states: list[str] = []
+    soc_id = entity_id(hass, SOC)
+
+    @callback
+    def record(event: Event) -> None:
+        if event.data["entity_id"] == soc_id and event.data["new_state"] is not None:
+            soc_states.append(event.data["new_state"].state)
+
+    hass.bus.async_listen(EVENT_STATE_CHANGED, record)
+    real = coordinator._apply_values
+    calls = 0
+
+    def explode_once(values: Any) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("a bug in event handling")
+        real(values)
+
+    with patch.object(coordinator, "_apply_values", side_effect=explode_once):
+        gateway.push("values", {"values": []})
+        await gateway.wait_for_stream(2)
+        await wait_until(hass, lambda: coordinator.connected)
+
+    assert STATE_UNAVAILABLE in soc_states
+    assert soc_states[-1] == "87"
+    assert not coordinator.stream_task.done()
+
+
+async def test_a_dying_stream_task_never_leaves_entities_available(
+    hass: HomeAssistant, loaded_entry: MockConfigEntry, gateway: FakeGateway
+) -> None:
+    # Even a BaseException that is not ours (here: the task being cancelled) ends "connected".
+    coordinator = loaded_entry.runtime_data.coordinator
+
+    coordinator.stream_task.cancel()
+    await wait_until(hass, coordinator.stream_task.done)
+
+    assert not coordinator.connected
+    assert state(hass, SOC).state == STATE_UNAVAILABLE
+
+
+async def test_the_stream_generator_is_closed_when_a_reload_ends_the_stream(
+    hass: HomeAssistant, loaded_entry: MockConfigEntry, gateway: FakeGateway
+) -> None:
+    coordinator = loaded_entry.runtime_data.coordinator
+    client = loaded_entry.runtime_data.client
+    closed = asyncio.Event()
+    task_done_when_closed: list[bool] = []
+
+    async def stream() -> AsyncIterator[SseEvent]:
+        try:
+            yield SseEvent("catalog", {"catalogRevision": NEW_REVISION})
+            await asyncio.Event().wait()
+        finally:
+            task_done_when_closed.append(coordinator.stream_task.done())
+            closed.set()
+
+    _change_catalog(gateway)
+    with patch.object(client, "async_stream", side_effect=stream):
+        gateway.drop_streams()
+        async with asyncio.timeout(5):
+            await closed.wait()
+
+    # Closed by the loop itself (aclosing), not later by the asyncgen finaliser once the task's
+    # frame is gone, which would hold the HTTP response open until then.
+    assert task_done_when_closed == [False]

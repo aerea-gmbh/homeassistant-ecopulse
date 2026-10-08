@@ -190,3 +190,15 @@ async def test_a_malformed_catalog_is_a_connection_error_not_a_crash(
 
     with pytest.raises(EcoPulseConnectionError):
         await _client(session, gateway).async_get_catalog()
+
+
+async def test_a_redirect_is_not_followed(
+    session: aiohttp.ClientSession, gateway: FakeGateway
+) -> None:
+    # The token must only ever reach the gateway it was typed in for.
+    gateway.redirect_to = "/elsewhere"
+
+    with pytest.raises(EcoPulseConnectionError):
+        await _client(session, gateway).async_get_info()
+
+    assert [r.path for r in gateway.requests] == ["/api/ha/v1/info"]

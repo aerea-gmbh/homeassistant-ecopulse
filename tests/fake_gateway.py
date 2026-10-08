@@ -38,6 +38,7 @@ class FakeGateway:
     enabled: bool = True
     rate_limited_for: int | None = None
     forced_status: int | None = None
+    redirect_to: str | None = None
     send_snapshot: bool = True
     requests: list[RecordedRequest] = field(default_factory=list)
     stream_connections: int = 0
@@ -134,6 +135,8 @@ class FakeGateway:
             )
         if self.forced_status is not None:
             return _error(self.forced_status, "forced", "Forced by the test.")
+        if self.redirect_to is not None:
+            raise web.HTTPFound(self.redirect_to)
         tail = request.match_info["tail"]
         if tail == "info":
             return web.json_response(self.info)
