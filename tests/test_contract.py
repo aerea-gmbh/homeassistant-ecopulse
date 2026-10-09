@@ -57,7 +57,7 @@ def test_the_translated_gateway_entities_are_the_contract_s_problem_sensors(
     # Schema 3 (#626, ADR-231 §10): the gateway's own diagnostic binary sensors, named by the
     # integration's translations; every one has a name in every language.
     by_key = {e["key"]: e for e in contract["gatewayEntities"]["entities"]}
-    for key in const.TRANSLATED_GATEWAY_ENTITY_KEYS:
+    for key in const.PROBLEM_SENSOR_KEYS:
         assert by_key[key]["platform"] == "binary_sensor"
         assert by_key[key]["entityCategory"] == "diagnostic"
         assert by_key[key]["source"] == "edge"
@@ -65,14 +65,37 @@ def test_the_translated_gateway_entities_are_the_contract_s_problem_sensors(
         const.CLOUD_CONNECTED_KEY,
         const.DRIVER_PROBLEM_KEY,
         const.DIRECTIVE_FALLBACK_KEY,
-    } == const.TRANSLATED_GATEWAY_ENTITY_KEYS
+    } == const.PROBLEM_SENSOR_KEYS
     for language in ("en", "de"):
         names = json.loads((TRANSLATIONS_PATH / f"{language}.json").read_text(encoding="utf-8"))
-        for key in const.TRANSLATED_GATEWAY_ENTITY_KEYS:
+        for key in const.PROBLEM_SENSOR_KEYS:
             assert names["entity"]["binary_sensor"][key]["name"], (language, key)
     strings = json.loads(STRINGS_PATH.read_text(encoding="utf-8"))
     english = json.loads((TRANSLATIONS_PATH / "en.json").read_text(encoding="utf-8"))
     assert strings == english
+
+
+def test_the_forecast_sensors_are_the_contract_s_forecast_entities(
+    contract: dict[str, Any],
+) -> None:
+    # Schema 3 (#626 S7.2, ADR-231 §12): every sensor fed by "forecast.summary" is named by the
+    # integration's translations, with a name for each of its attributes in every language.
+    section = contract["gatewayEntities"]
+    forecast = {e["key"]: e for e in section["entities"] if e["cloudFact"] == "forecast"}
+    assert frozenset(forecast) == const.FORECAST_ENTITY_KEYS
+    assert const.TRANSLATED_GATEWAY_ENTITY_KEYS == (
+        const.PROBLEM_SENSOR_KEYS | const.FORECAST_ENTITY_KEYS
+    )
+    cloud_attributes = [a["key"] for a in section["cloudAttributes"]]
+    for language in ("en", "de"):
+        names = json.loads((TRANSLATIONS_PATH / f"{language}.json").read_text(encoding="utf-8"))
+        for key, definition in forecast.items():
+            assert definition["platform"] == "sensor"
+            entry = names["entity"]["sensor"][key]
+            assert entry["name"], (language, key)
+            expected = cloud_attributes + [a["key"] for a in definition["attributes"]]
+            assert sorted(entry["state_attributes"]) == sorted(expected), (language, key)
+            assert all(v["name"] for v in entry["state_attributes"].values()), (language, key)
 
 
 def test_value_attributes_and_their_unrecorded_keys_match(contract: dict[str, Any]) -> None:

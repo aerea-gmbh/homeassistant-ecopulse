@@ -46,9 +46,25 @@ SOLAR_EXCESS_POWER_KEY: Final = "solar_excess_power"
 CLOUD_CONNECTED_KEY: Final = "cloud_connected"
 DRIVER_PROBLEM_KEY: Final = "driver_problem"
 DIRECTIVE_FALLBACK_KEY: Final = "directive_fallback"
-TRANSLATED_GATEWAY_ENTITY_KEYS: Final = frozenset(
+PROBLEM_SENSOR_KEYS: Final = frozenset(
     {CLOUD_CONNECTED_KEY, DRIVER_PROBLEM_KEY, DIRECTIVE_FALLBACK_KEY}
 )
+# The forecast and price sensors (schema 3, #626 S7.2, ADR-231): fed by the cloud's
+# "forecast.summary" push, listed by the gateway while the push carries their section.
+FORECAST_ENTITY_KEYS: Final = frozenset(
+    {
+        "pv_forecast_today",
+        "pv_forecast_remaining_today",
+        "pv_forecast_tomorrow",
+        "pv_forecast_power_now",
+        "pv_forecast_power_next_hour",
+        "consumption_forecast_today",
+        "consumption_forecast_remaining_today",
+        "consumption_forecast_tomorrow",
+        "price_now",
+    }
+)
+TRANSLATED_GATEWAY_ENTITY_KEYS: Final = PROBLEM_SENSOR_KEYS | FORECAST_ENTITY_KEYS
 
 # Contract "stream.attributes" (schema 3, #626): a value's attributes; these keys stay out of
 # the recorder (the arrays, and synced_at, which moves with every cloud resync).

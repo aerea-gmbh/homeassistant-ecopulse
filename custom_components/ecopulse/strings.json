@@ -97,6 +97,158 @@
           }
         }
       }
+    },
+    "sensor": {
+      "pv_forecast_today": {
+        "name": "PV forecast today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "pv_forecast_remaining_today": {
+        "name": "PV forecast remaining today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "pv_forecast_tomorrow": {
+        "name": "PV forecast tomorrow",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "pv_forecast_power_now": {
+        "name": "PV forecast power now",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "pv_forecast_power_next_hour": {
+        "name": "PV forecast power next hour",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "consumption_forecast_today": {
+        "name": "Consumption forecast today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "consumption_forecast_remaining_today": {
+        "name": "Consumption forecast remaining today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "consumption_forecast_tomorrow": {
+        "name": "Consumption forecast tomorrow",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "price_now": {
+        "name": "Electricity price",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "slot_start": {
+            "name": "Slot start"
+          },
+          "slot_end": {
+            "name": "Slot end"
+          },
+          "export_now": {
+            "name": "Export price now"
+          },
+          "prices": {
+            "name": "Prices"
+          }
+        }
+      }
     }
   }
 }

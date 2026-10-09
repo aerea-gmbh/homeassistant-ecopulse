@@ -97,6 +97,158 @@
           }
         }
       }
+    },
+    "sensor": {
+      "pv_forecast_today": {
+        "name": "PV-Prognose heute",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "hourly": {
+            "name": "Stündlich"
+          }
+        }
+      },
+      "pv_forecast_remaining_today": {
+        "name": "PV-Prognose Rest heute",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          }
+        }
+      },
+      "pv_forecast_tomorrow": {
+        "name": "PV-Prognose morgen",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "hourly": {
+            "name": "Stündlich"
+          }
+        }
+      },
+      "pv_forecast_power_now": {
+        "name": "PV-Prognose Leistung jetzt",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          }
+        }
+      },
+      "pv_forecast_power_next_hour": {
+        "name": "PV-Prognose Leistung nächste Stunde",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          }
+        }
+      },
+      "consumption_forecast_today": {
+        "name": "Verbrauchsprognose heute",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "hourly": {
+            "name": "Stündlich"
+          }
+        }
+      },
+      "consumption_forecast_remaining_today": {
+        "name": "Verbrauchsprognose Rest heute",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          }
+        }
+      },
+      "consumption_forecast_tomorrow": {
+        "name": "Verbrauchsprognose morgen",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "hourly": {
+            "name": "Stündlich"
+          }
+        }
+      },
+      "price_now": {
+        "name": "Strompreis",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "slot_start": {
+            "name": "Slot-Beginn"
+          },
+          "slot_end": {
+            "name": "Slot-Ende"
+          },
+          "export_now": {
+            "name": "Einspeisepreis jetzt"
+          },
+          "prices": {
+            "name": "Preise"
+          }
+        }
+      }
     }
   }
 }

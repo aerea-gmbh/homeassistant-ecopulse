@@ -102,6 +102,28 @@ automation:
             {% endfor %}
 ```
 
+## Forecasts and electricity price
+
+When EcoPulse has a forecast or a price for your plant, the gateway device also gets these sensors. EcoPulse
+computes them in its cloud and sends them to the gateway, which keeps them on its disk and works out the current
+values itself, so they keep moving through a cloud outage:
+
+- **PV forecast today / tomorrow / remaining today** (kWh), with the attribute `hourly` (`start`, `wh`) on today and
+  tomorrow, and **PV forecast power now / next hour** (W).
+- **Consumption forecast today / tomorrow / remaining today** (kWh), `hourly` on today and tomorrow.
+- **Electricity price** (for example `EUR/kWh`, the currency of your tariff): the import price of the running slot,
+  with `export_now`, `slot_start`, `slot_end` and `prices` (the coming slots with `start`, `import`, `export`). A
+  flat tariff shows its one price with no slot and an empty `prices`; a tiered tariff shows no price at all.
+
+The energy forecasts have no state class on purpose: they are no meters, so they do not belong in the Energy
+dashboard. A sensor only exists while EcoPulse delivers its part: a plant without a price has no price sensor.
+
+Each of them also carries `cloud_synced` (whether EcoPulse currently delivers this data), `synced_at` (when it
+last arrived) and `computed_at` (when EcoPulse computed it). While the cloud is unreachable the values stay
+available and `cloud_synced` turns false. Once the delivered forecast runs out (after about a day without the cloud,
+"tomorrow" has no data left) the value becomes unknown rather than showing an old day. The lists and `synced_at` are kept out of the
+recorder. The names are translated (English, German).
+
 ## Requirements
 
 - Home Assistant **2025.10** or newer.
