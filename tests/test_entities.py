@@ -24,6 +24,7 @@ from .helpers import (
     CELL_TEMPERATURE,
     CHARGE_ENABLE,
     CHARGE_ENERGY,
+    EXAMPLE_GATEWAY_ENTITIES,
     GRID_POWER,
     METER_DEVICE,
     SOC,
@@ -73,10 +74,12 @@ async def test_every_catalog_entity_is_registered_with_its_unique_id(
             ("binary_sensor", CHARGE_ENABLE),
             ("sensor", WALLBOX_SETPOINT),
             ("sensor", GRID_POWER),
-            ("sensor", SOLAR_EXCESS),
             ("binary_sensor", SURPLUS_AVAILABLE),
+            # Every gateway entity of the example, solar_excess_power and the schema 3 ones (#626).
+            *EXAMPLE_GATEWAY_ENTITIES,
         ]
     )
+    assert ("sensor", SOLAR_EXCESS) in EXAMPLE_GATEWAY_ENTITIES
 
 
 async def test_sensor_metadata_and_snapshot_values(

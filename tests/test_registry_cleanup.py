@@ -17,6 +17,8 @@ from .helpers import (
     BATTERY_DEVICE,
     CHARGE_ENABLE,
     CHARGE_ENERGY,
+    EXAMPLE_GATEWAY_ENTITIES,
+    EXAMPLE_SIGNALS,
     GRID_POWER,
     METER_DEVICE,
     SOC,
@@ -86,7 +88,8 @@ async def test_an_empty_catalog_removes_nothing(
 
     await _push_catalog_change(hass, loaded_entry, gateway)
 
-    assert len(before) == 8  # six signals, solar_excess_power, surplus_available
+    # The signals, every gateway entity, surplus_available.
+    assert len(before) == len(EXAMPLE_SIGNALS) + len(EXAMPLE_GATEWAY_ENTITIES) + 1
     assert _registry_ids(hass, loaded_entry) == before
     assert device(hass, BATTERY_DEVICE) is not None
     assert state(hass, SOC).state == "unavailable"

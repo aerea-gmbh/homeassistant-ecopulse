@@ -2,6 +2,9 @@
 
 A signal sits on its aggregate device; a gateway entity (``device`` None, schema 2, #623) sits on
 the gateway device and is available exactly while the stream is connected.
+
+Schema 3 (#626): a value's ``attributes`` become the entity's state attributes, replaced with
+every value; the contract's unrecorded keys (arrays such as ``drivers``) stay out of the recorder.
 """
 
 from __future__ import annotations
@@ -13,7 +16,13 @@ from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN, ENTITY_CATEGORY_DIAGNOSTIC
+from .const import (
+    DOMAIN,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE,
+    TRANSLATED_GATEWAY_ENTITY_KEYS,
+    UNRECORDED_ATTRIBUTE_KEYS,
+)
 from .coordinator import EcoPulseStreamCoordinator
 from .models import CatalogDevice, CatalogEntity
 
@@ -21,6 +30,7 @@ from .models import CatalogDevice, CatalogEntity
 class EcoPulseEntity(Entity):
     _attr_has_entity_name = True
     _attr_should_poll = False
+    _unrecorded_attributes = UNRECORDED_ATTRIBUTE_KEYS
 
     def __init__(
         self,
@@ -31,7 +41,12 @@ class EcoPulseEntity(Entity):
         self.coordinator = coordinator
         self._device_id = device.id if device else None
         self._attr_unique_id = entity.unique_id
-        self._attr_name = entity.name
+        if device is None and (key := _gateway_entity_key(coordinator, entity)) in (
+            TRANSLATED_GATEWAY_ENTITY_KEYS
+        ):
+            self._attr_translation_key = key
+        else:
+            self._attr_name = entity.name
         self._attr_entity_category = (
             EntityCategory.DIAGNOSTIC
             if entity.entity_category == ENTITY_CATEGORY_DIAGNOSTIC
@@ -57,6 +72,12 @@ class EcoPulseEntity(Entity):
         return self.coordinator.is_device_available(self._device_id)
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        assert self.unique_id is not None
+        current = self.coordinator.value(self.unique_id)
+        return None if current is None or current.attributes is None else dict(current.attributes)
+
+    @property
     def _raw_value(self) -> Any:
         assert self.unique_id is not None
         current = self.coordinator.value(self.unique_id)
@@ -71,6 +92,16 @@ class EcoPulseEntity(Entity):
     @callback
     def _handle_update(self) -> None:
         self.async_write_ha_state()
+
+
+def _gateway_entity_key(
+    coordinator: EcoPulseStreamCoordinator, entity: CatalogEntity
+) -> str | None:
+    """The contract key of a gateway entity ("{gatewayId}:{key}"), None for anything else."""
+    prefix = GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE.format(
+        gatewayId=coordinator.catalog.gateway_id, key=""
+    )
+    return entity.unique_id.removeprefix(prefix) if entity.unique_id.startswith(prefix) else None
 
 
 def gateway_device_info(coordinator: EcoPulseStreamCoordinator) -> DeviceInfo:

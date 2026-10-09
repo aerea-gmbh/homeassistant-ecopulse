@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "apiVersion": 1,
   "basePath": "/api/ha/v1",
   "auth": {
@@ -147,6 +147,33 @@
   },
   "gatewayEntities": {
     "uniqueIdTemplate": "{gatewayId}:{key}",
+    "sources": [
+      "edge",
+      "cloud"
+    ],
+    "cloudAttributes": [
+      {
+        "key": "cloud_synced",
+        "recorded": true,
+        "maxItems": null,
+        "itemProperties": null
+      },
+      {
+        "key": "synced_at",
+        "recorded": false,
+        "maxItems": null,
+        "itemProperties": null
+      },
+      {
+        "key": "computed_at",
+        "recorded": true,
+        "maxItems": null,
+        "itemProperties": null
+      }
+    ],
+    "unitPlaceholders": [
+      "{currency}"
+    ],
     "entities": [
       {
         "key": "solar_excess_power",
@@ -157,9 +184,474 @@
         "stateClass": "measurement",
         "suggestedDisplayPrecision": 0,
         "entityCategory": null,
-        "enabledByDefault": true
+        "enabledByDefault": true,
+        "source": "edge",
+        "cloudFact": null,
+        "attributes": []
+      },
+      {
+        "key": "cloud_connected",
+        "name": "Cloud connection",
+        "platform": "binary_sensor",
+        "unit": null,
+        "deviceClass": "connectivity",
+        "stateClass": null,
+        "suggestedDisplayPrecision": null,
+        "entityCategory": "diagnostic",
+        "enabledByDefault": true,
+        "source": "edge",
+        "cloudFact": null,
+        "attributes": []
+      },
+      {
+        "key": "driver_problem",
+        "name": "Driver problem",
+        "platform": "binary_sensor",
+        "unit": null,
+        "deviceClass": "problem",
+        "stateClass": null,
+        "suggestedDisplayPrecision": null,
+        "entityCategory": "diagnostic",
+        "enabledByDefault": true,
+        "source": "edge",
+        "cloudFact": null,
+        "attributes": [
+          {
+            "key": "drivers",
+            "recorded": false,
+            "maxItems": 8,
+            "itemProperties": [
+              "id",
+              "state",
+              "since",
+              "error"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "directive_fallback",
+        "name": "Optimizer fallback",
+        "platform": "binary_sensor",
+        "unit": null,
+        "deviceClass": "problem",
+        "stateClass": null,
+        "suggestedDisplayPrecision": null,
+        "entityCategory": "diagnostic",
+        "enabledByDefault": true,
+        "source": "edge",
+        "cloudFact": null,
+        "attributes": [
+          {
+            "key": "assistants",
+            "recorded": false,
+            "maxItems": 8,
+            "itemProperties": [
+              "id",
+              "kind",
+              "since"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "pv_forecast_today",
+        "name": "PV forecast today",
+        "platform": "sensor",
+        "unit": "kWh",
+        "deviceClass": "energy",
+        "stateClass": null,
+        "suggestedDisplayPrecision": 1,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": [
+          {
+            "key": "hourly",
+            "recorded": false,
+            "maxItems": 25,
+            "itemProperties": [
+              "start",
+              "wh"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "pv_forecast_remaining_today",
+        "name": "PV forecast remaining today",
+        "platform": "sensor",
+        "unit": "kWh",
+        "deviceClass": "energy",
+        "stateClass": null,
+        "suggestedDisplayPrecision": 1,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": []
+      },
+      {
+        "key": "pv_forecast_tomorrow",
+        "name": "PV forecast tomorrow",
+        "platform": "sensor",
+        "unit": "kWh",
+        "deviceClass": "energy",
+        "stateClass": null,
+        "suggestedDisplayPrecision": 1,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": [
+          {
+            "key": "hourly",
+            "recorded": false,
+            "maxItems": 25,
+            "itemProperties": [
+              "start",
+              "wh"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "pv_forecast_power_now",
+        "name": "PV forecast power now",
+        "platform": "sensor",
+        "unit": "W",
+        "deviceClass": "power",
+        "stateClass": "measurement",
+        "suggestedDisplayPrecision": 0,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": []
+      },
+      {
+        "key": "pv_forecast_power_next_hour",
+        "name": "PV forecast power next hour",
+        "platform": "sensor",
+        "unit": "W",
+        "deviceClass": "power",
+        "stateClass": "measurement",
+        "suggestedDisplayPrecision": 0,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": []
+      },
+      {
+        "key": "consumption_forecast_today",
+        "name": "Consumption forecast today",
+        "platform": "sensor",
+        "unit": "kWh",
+        "deviceClass": "energy",
+        "stateClass": null,
+        "suggestedDisplayPrecision": 1,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": [
+          {
+            "key": "hourly",
+            "recorded": false,
+            "maxItems": 25,
+            "itemProperties": [
+              "start",
+              "wh"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "consumption_forecast_remaining_today",
+        "name": "Consumption forecast remaining today",
+        "platform": "sensor",
+        "unit": "kWh",
+        "deviceClass": "energy",
+        "stateClass": null,
+        "suggestedDisplayPrecision": 1,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": []
+      },
+      {
+        "key": "consumption_forecast_tomorrow",
+        "name": "Consumption forecast tomorrow",
+        "platform": "sensor",
+        "unit": "kWh",
+        "deviceClass": "energy",
+        "stateClass": null,
+        "suggestedDisplayPrecision": 1,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": [
+          {
+            "key": "hourly",
+            "recorded": false,
+            "maxItems": 25,
+            "itemProperties": [
+              "start",
+              "wh"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "price_now",
+        "name": "Electricity price",
+        "platform": "sensor",
+        "unit": "{currency}/kWh",
+        "deviceClass": null,
+        "stateClass": "measurement",
+        "suggestedDisplayPrecision": 3,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "forecast",
+        "attributes": [
+          {
+            "key": "slot_start",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "slot_end",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "export_now",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "prices",
+            "recorded": false,
+            "maxItems": 48,
+            "itemProperties": [
+              "start",
+              "import",
+              "export"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "battery_plan_state",
+        "name": "Battery plan",
+        "platform": "sensor",
+        "unit": null,
+        "deviceClass": null,
+        "stateClass": null,
+        "suggestedDisplayPrecision": null,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "batteryPlan",
+        "attributes": [
+          {
+            "key": "slot_start",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "slot_end",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "next_state",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "next_change_at",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "plan",
+            "recorded": false,
+            "maxItems": 32,
+            "itemProperties": [
+              "start",
+              "state",
+              "soc"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "battery_plan_soc",
+        "name": "Battery plan state of charge",
+        "platform": "sensor",
+        "unit": "%",
+        "deviceClass": "battery",
+        "stateClass": "measurement",
+        "suggestedDisplayPrecision": 0,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "batteryPlan",
+        "attributes": []
+      },
+      {
+        "key": "heatpump_plan_state",
+        "name": "Heat pump plan",
+        "platform": "sensor",
+        "unit": null,
+        "deviceClass": null,
+        "stateClass": null,
+        "suggestedDisplayPrecision": null,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "heatpumpPlan",
+        "attributes": [
+          {
+            "key": "slot_start",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "slot_end",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "next_state",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "next_change_at",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "plan",
+            "recorded": false,
+            "maxItems": 32,
+            "itemProperties": [
+              "start",
+              "state"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "alarm",
+        "name": "Alarm",
+        "platform": "binary_sensor",
+        "unit": null,
+        "deviceClass": "problem",
+        "stateClass": null,
+        "suggestedDisplayPrecision": null,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "alerts",
+        "attributes": [
+          {
+            "key": "active_count",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "critical_count",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "alarms",
+            "recorded": false,
+            "maxItems": 10,
+            "itemProperties": [
+              "rule",
+              "severity",
+              "since"
+            ]
+          }
+        ]
       }
-    ]
+    ],
+    "families": [
+      {
+        "keyTemplate": "alarm_{ruleId}",
+        "nameFrom": "rule",
+        "platform": "binary_sensor",
+        "unit": null,
+        "deviceClass": "problem",
+        "stateClass": null,
+        "suggestedDisplayPrecision": null,
+        "entityCategory": null,
+        "enabledByDefault": true,
+        "source": "cloud",
+        "cloudFact": "alerts",
+        "attributes": [
+          {
+            "key": "rule_type",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "severity",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "since",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "message",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "acknowledged",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          },
+          {
+            "key": "in_maintenance",
+            "recorded": true,
+            "maxItems": null,
+            "itemProperties": null
+          }
+        ]
+      }
+    ],
+    "catalogOrder": "entities-in-contract-order-then-family-instances-by-name-then-id"
   },
   "stream": {
     "events": [
@@ -189,6 +681,25 @@
       "value",
       "ts"
     ],
+    "optionalValueProperties": [
+      "attributes"
+    ],
+    "attributes": {
+      "budgetBytes": 4096,
+      "maxStringLength": 256,
+      "lengthUnit": "utf-16-code-units",
+      "semantics": "replace",
+      "overBudget": "trim-array-tail",
+      "unrecordedKeys": [
+        "synced_at",
+        "drivers",
+        "assistants",
+        "hourly",
+        "prices",
+        "plan",
+        "alarms"
+      ]
+    },
     "availabilityProperties": [
       "id",
       "available"
@@ -400,6 +911,226 @@
             "suggestedDisplayPrecision": 0,
             "entityCategory": null,
             "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:cloud_connected",
+            "name": "Cloud connection",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "connectivity",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": "diagnostic",
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:driver_problem",
+            "name": "Driver problem",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "problem",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": "diagnostic",
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:directive_fallback",
+            "name": "Optimizer fallback",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "problem",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": "diagnostic",
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:pv_forecast_today",
+            "name": "PV forecast today",
+            "platform": "sensor",
+            "unit": "kWh",
+            "deviceClass": "energy",
+            "stateClass": null,
+            "suggestedDisplayPrecision": 1,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:pv_forecast_remaining_today",
+            "name": "PV forecast remaining today",
+            "platform": "sensor",
+            "unit": "kWh",
+            "deviceClass": "energy",
+            "stateClass": null,
+            "suggestedDisplayPrecision": 1,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:pv_forecast_tomorrow",
+            "name": "PV forecast tomorrow",
+            "platform": "sensor",
+            "unit": "kWh",
+            "deviceClass": "energy",
+            "stateClass": null,
+            "suggestedDisplayPrecision": 1,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:pv_forecast_power_now",
+            "name": "PV forecast power now",
+            "platform": "sensor",
+            "unit": "W",
+            "deviceClass": "power",
+            "stateClass": "measurement",
+            "suggestedDisplayPrecision": 0,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:pv_forecast_power_next_hour",
+            "name": "PV forecast power next hour",
+            "platform": "sensor",
+            "unit": "W",
+            "deviceClass": "power",
+            "stateClass": "measurement",
+            "suggestedDisplayPrecision": 0,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:consumption_forecast_today",
+            "name": "Consumption forecast today",
+            "platform": "sensor",
+            "unit": "kWh",
+            "deviceClass": "energy",
+            "stateClass": null,
+            "suggestedDisplayPrecision": 1,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:consumption_forecast_remaining_today",
+            "name": "Consumption forecast remaining today",
+            "platform": "sensor",
+            "unit": "kWh",
+            "deviceClass": "energy",
+            "stateClass": null,
+            "suggestedDisplayPrecision": 1,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:consumption_forecast_tomorrow",
+            "name": "Consumption forecast tomorrow",
+            "platform": "sensor",
+            "unit": "kWh",
+            "deviceClass": "energy",
+            "stateClass": null,
+            "suggestedDisplayPrecision": 1,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:price_now",
+            "name": "Electricity price",
+            "platform": "sensor",
+            "unit": "EUR/kWh",
+            "deviceClass": null,
+            "stateClass": "measurement",
+            "suggestedDisplayPrecision": 3,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:battery_plan_state",
+            "name": "Battery plan",
+            "platform": "sensor",
+            "unit": null,
+            "deviceClass": null,
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:battery_plan_soc",
+            "name": "Battery plan state of charge",
+            "platform": "sensor",
+            "unit": "%",
+            "deviceClass": "battery",
+            "stateClass": "measurement",
+            "suggestedDisplayPrecision": 0,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:heatpump_plan_state",
+            "name": "Heat pump plan",
+            "platform": "sensor",
+            "unit": null,
+            "deviceClass": null,
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:alarm",
+            "name": "Alarm",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "problem",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:alarm_8b3f6c1e-2d4a-4e5b-9c7d-1a2b3c4d5e6f",
+            "name": "Battery temperature high",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "problem",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:alarm_9c4a7d2f-3e5b-4f6c-8d9e-2b3c4d5e6f70",
+            "name": "Grid meter stale",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "problem",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:alarm_ad5b8e3a-4f6c-4a7d-9e0f-3c4d5e6f7081",
+            "name": "Heat pump alarm",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "problem",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": null,
+            "enabledByDefault": true
+          },
+          {
+            "uniqueId": "gw-7f3a9c:alarm_be6c9f4b-5a7d-4b8e-8f1a-4d5e6f708192",
+            "name": "PV string voltage out of range",
+            "platform": "binary_sensor",
+            "unit": null,
+            "deviceClass": "problem",
+            "stateClass": null,
+            "suggestedDisplayPrecision": null,
+            "entityCategory": null,
+            "enabledByDefault": true
           }
         ]
       },
@@ -548,6 +1279,756 @@
             "id": "gw-7f3a9c:solar_excess_power",
             "value": null,
             "ts": "2026-10-08T09:15:02.000Z"
+          },
+          {
+            "id": "gw-7f3a9c:cloud_connected",
+            "value": true,
+            "ts": "2026-10-08T09:15:02.000Z"
+          },
+          {
+            "id": "gw-7f3a9c:driver_problem",
+            "value": false,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "drivers": []
+            }
+          },
+          {
+            "id": "gw-7f3a9c:directive_fallback",
+            "value": false,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "assistants": []
+            }
+          },
+          {
+            "id": "gw-7f3a9c:pv_forecast_today",
+            "value": 19.506,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T09:05:12.000Z",
+              "hourly": [
+                {
+                  "start": "2026-10-07T22:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-07T23:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T00:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T01:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T02:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T03:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T04:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T05:00:00.000Z",
+                  "wh": 50.5
+                },
+                {
+                  "start": "2026-10-08T06:00:00.000Z",
+                  "wh": 400.5
+                },
+                {
+                  "start": "2026-10-08T07:00:00.000Z",
+                  "wh": 1100.5
+                },
+                {
+                  "start": "2026-10-08T08:00:00.000Z",
+                  "wh": 1900.5
+                },
+                {
+                  "start": "2026-10-08T09:00:00.000Z",
+                  "wh": 2600.5
+                },
+                {
+                  "start": "2026-10-08T10:00:00.000Z",
+                  "wh": 3000.5
+                },
+                {
+                  "start": "2026-10-08T11:00:00.000Z",
+                  "wh": 3100.5
+                },
+                {
+                  "start": "2026-10-08T12:00:00.000Z",
+                  "wh": 2800.5
+                },
+                {
+                  "start": "2026-10-08T13:00:00.000Z",
+                  "wh": 2200.5
+                },
+                {
+                  "start": "2026-10-08T14:00:00.000Z",
+                  "wh": 1500.5
+                },
+                {
+                  "start": "2026-10-08T15:00:00.000Z",
+                  "wh": 700.5
+                },
+                {
+                  "start": "2026-10-08T16:00:00.000Z",
+                  "wh": 150.5
+                },
+                {
+                  "start": "2026-10-08T17:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T18:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T19:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T20:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T21:00:00.000Z",
+                  "wh": 0
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:pv_forecast_remaining_today",
+            "value": 15.402,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T09:05:12.000Z"
+            }
+          },
+          {
+            "id": "gw-7f3a9c:pv_forecast_tomorrow",
+            "value": 11.866,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T09:05:12.000Z",
+              "hourly": [
+                {
+                  "start": "2026-10-08T22:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-08T23:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T00:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T01:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T02:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T03:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T04:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T05:00:00.000Z",
+                  "wh": 30.5
+                },
+                {
+                  "start": "2026-10-09T06:00:00.000Z",
+                  "wh": 250.5
+                },
+                {
+                  "start": "2026-10-09T07:00:00.000Z",
+                  "wh": 700.5
+                },
+                {
+                  "start": "2026-10-09T08:00:00.000Z",
+                  "wh": 1200.5
+                },
+                {
+                  "start": "2026-10-09T09:00:00.000Z",
+                  "wh": 1600.5
+                },
+                {
+                  "start": "2026-10-09T10:00:00.000Z",
+                  "wh": 1800.5
+                },
+                {
+                  "start": "2026-10-09T11:00:00.000Z",
+                  "wh": 1900.5
+                },
+                {
+                  "start": "2026-10-09T12:00:00.000Z",
+                  "wh": 1700.5
+                },
+                {
+                  "start": "2026-10-09T13:00:00.000Z",
+                  "wh": 1300.5
+                },
+                {
+                  "start": "2026-10-09T14:00:00.000Z",
+                  "wh": 900.5
+                },
+                {
+                  "start": "2026-10-09T15:00:00.000Z",
+                  "wh": 400.5
+                },
+                {
+                  "start": "2026-10-09T16:00:00.000Z",
+                  "wh": 80.5
+                },
+                {
+                  "start": "2026-10-09T17:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T18:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T19:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T20:00:00.000Z",
+                  "wh": 0
+                },
+                {
+                  "start": "2026-10-09T21:00:00.000Z",
+                  "wh": 0
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:pv_forecast_power_now",
+            "value": 2600.5,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T09:05:12.000Z"
+            }
+          },
+          {
+            "id": "gw-7f3a9c:pv_forecast_power_next_hour",
+            "value": 3000.5,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T09:05:12.000Z"
+            }
+          },
+          {
+            "id": "gw-7f3a9c:consumption_forecast_today",
+            "value": 13.266,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T03:10:27.000Z",
+              "hourly": [
+                {
+                  "start": "2026-10-07T22:00:00.000Z",
+                  "wh": 350.25
+                },
+                {
+                  "start": "2026-10-07T23:00:00.000Z",
+                  "wh": 300.25
+                },
+                {
+                  "start": "2026-10-08T00:00:00.000Z",
+                  "wh": 300.25
+                },
+                {
+                  "start": "2026-10-08T01:00:00.000Z",
+                  "wh": 280.25
+                },
+                {
+                  "start": "2026-10-08T02:00:00.000Z",
+                  "wh": 280.25
+                },
+                {
+                  "start": "2026-10-08T03:00:00.000Z",
+                  "wh": 300.25
+                },
+                {
+                  "start": "2026-10-08T04:00:00.000Z",
+                  "wh": 450.25
+                },
+                {
+                  "start": "2026-10-08T05:00:00.000Z",
+                  "wh": 700.25
+                },
+                {
+                  "start": "2026-10-08T06:00:00.000Z",
+                  "wh": 650.25
+                },
+                {
+                  "start": "2026-10-08T07:00:00.000Z",
+                  "wh": 500.25
+                },
+                {
+                  "start": "2026-10-08T08:00:00.000Z",
+                  "wh": 450.25
+                },
+                {
+                  "start": "2026-10-08T09:00:00.000Z",
+                  "wh": 600.25
+                },
+                {
+                  "start": "2026-10-08T10:00:00.000Z",
+                  "wh": 750.25
+                },
+                {
+                  "start": "2026-10-08T11:00:00.000Z",
+                  "wh": 550.25
+                },
+                {
+                  "start": "2026-10-08T12:00:00.000Z",
+                  "wh": 450.25
+                },
+                {
+                  "start": "2026-10-08T13:00:00.000Z",
+                  "wh": 450.25
+                },
+                {
+                  "start": "2026-10-08T14:00:00.000Z",
+                  "wh": 600.25
+                },
+                {
+                  "start": "2026-10-08T15:00:00.000Z",
+                  "wh": 900.25
+                },
+                {
+                  "start": "2026-10-08T16:00:00.000Z",
+                  "wh": 1100.25
+                },
+                {
+                  "start": "2026-10-08T17:00:00.000Z",
+                  "wh": 950.25
+                },
+                {
+                  "start": "2026-10-08T18:00:00.000Z",
+                  "wh": 800.25
+                },
+                {
+                  "start": "2026-10-08T19:00:00.000Z",
+                  "wh": 650.25
+                },
+                {
+                  "start": "2026-10-08T20:00:00.000Z",
+                  "wh": 500.25
+                },
+                {
+                  "start": "2026-10-08T21:00:00.000Z",
+                  "wh": 400.25
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:consumption_forecast_remaining_today",
+            "value": 8.553,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T03:10:27.000Z"
+            }
+          },
+          {
+            "id": "gw-7f3a9c:consumption_forecast_tomorrow",
+            "value": 13.336,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T03:10:27.000Z",
+              "hourly": [
+                {
+                  "start": "2026-10-08T22:00:00.000Z",
+                  "wh": 340.25
+                },
+                {
+                  "start": "2026-10-08T23:00:00.000Z",
+                  "wh": 300.25
+                },
+                {
+                  "start": "2026-10-09T00:00:00.000Z",
+                  "wh": 290.25
+                },
+                {
+                  "start": "2026-10-09T01:00:00.000Z",
+                  "wh": 280.25
+                },
+                {
+                  "start": "2026-10-09T02:00:00.000Z",
+                  "wh": 290.25
+                },
+                {
+                  "start": "2026-10-09T03:00:00.000Z",
+                  "wh": 310.25
+                },
+                {
+                  "start": "2026-10-09T04:00:00.000Z",
+                  "wh": 470.25
+                },
+                {
+                  "start": "2026-10-09T05:00:00.000Z",
+                  "wh": 720.25
+                },
+                {
+                  "start": "2026-10-09T06:00:00.000Z",
+                  "wh": 640.25
+                },
+                {
+                  "start": "2026-10-09T07:00:00.000Z",
+                  "wh": 480.25
+                },
+                {
+                  "start": "2026-10-09T08:00:00.000Z",
+                  "wh": 440.25
+                },
+                {
+                  "start": "2026-10-09T09:00:00.000Z",
+                  "wh": 590.25
+                },
+                {
+                  "start": "2026-10-09T10:00:00.000Z",
+                  "wh": 730.25
+                },
+                {
+                  "start": "2026-10-09T11:00:00.000Z",
+                  "wh": 540.25
+                },
+                {
+                  "start": "2026-10-09T12:00:00.000Z",
+                  "wh": 440.25
+                },
+                {
+                  "start": "2026-10-09T13:00:00.000Z",
+                  "wh": 460.25
+                },
+                {
+                  "start": "2026-10-09T14:00:00.000Z",
+                  "wh": 620.25
+                },
+                {
+                  "start": "2026-10-09T15:00:00.000Z",
+                  "wh": 920.25
+                },
+                {
+                  "start": "2026-10-09T16:00:00.000Z",
+                  "wh": 1150.25
+                },
+                {
+                  "start": "2026-10-09T17:00:00.000Z",
+                  "wh": 980.25
+                },
+                {
+                  "start": "2026-10-09T18:00:00.000Z",
+                  "wh": 820.25
+                },
+                {
+                  "start": "2026-10-09T19:00:00.000Z",
+                  "wh": 640.25
+                },
+                {
+                  "start": "2026-10-09T20:00:00.000Z",
+                  "wh": 490.25
+                },
+                {
+                  "start": "2026-10-09T21:00:00.000Z",
+                  "wh": 390.25
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:price_now",
+            "value": 0.312,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:15:00.412Z",
+              "computed_at": "2026-10-08T09:15:00.000Z",
+              "slot_start": "2026-10-08T09:15:00.000Z",
+              "slot_end": "2026-10-08T09:30:00.000Z",
+              "export_now": 0.081,
+              "prices": [
+                {
+                  "start": "2026-10-08T09:15:00.000Z",
+                  "import": 0.312,
+                  "export": 0.081
+                },
+                {
+                  "start": "2026-10-08T09:30:00.000Z",
+                  "import": 0.305,
+                  "export": 0.079
+                },
+                {
+                  "start": "2026-10-08T09:45:00.000Z",
+                  "import": 0.298,
+                  "export": 0.077
+                },
+                {
+                  "start": "2026-10-08T10:00:00.000Z",
+                  "import": 0.291,
+                  "export": 0.075
+                },
+                {
+                  "start": "2026-10-08T10:15:00.000Z",
+                  "import": 0.287,
+                  "export": 0.074
+                },
+                {
+                  "start": "2026-10-08T10:30:00.000Z",
+                  "import": 0.281,
+                  "export": 0.072
+                },
+                {
+                  "start": "2026-10-08T10:45:00.000Z",
+                  "import": 0.276,
+                  "export": 0.07
+                },
+                {
+                  "start": "2026-10-08T11:00:00.000Z",
+                  "import": null,
+                  "export": null
+                },
+                {
+                  "start": "2026-10-08T11:15:00.000Z",
+                  "import": 0.268,
+                  "export": 0.067
+                },
+                {
+                  "start": "2026-10-08T11:30:00.000Z",
+                  "import": 0.265,
+                  "export": 0.066
+                },
+                {
+                  "start": "2026-10-08T11:45:00.000Z",
+                  "import": 0.262,
+                  "export": 0.065
+                },
+                {
+                  "start": "2026-10-08T12:00:00.000Z",
+                  "import": 0.266,
+                  "export": 0.066
+                },
+                {
+                  "start": "2026-10-08T12:15:00.000Z",
+                  "import": 0.271,
+                  "export": 0.068
+                },
+                {
+                  "start": "2026-10-08T12:30:00.000Z",
+                  "import": 0.279,
+                  "export": 0.07
+                },
+                {
+                  "start": "2026-10-08T12:45:00.000Z",
+                  "import": 0.288,
+                  "export": 0.073
+                },
+                {
+                  "start": "2026-10-08T13:00:00.000Z",
+                  "import": 0.296,
+                  "export": 0.075
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:battery_plan_state",
+            "value": "zero_export",
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:01:31.388Z",
+              "computed_at": "2026-10-08T09:01:30.000Z",
+              "slot_start": "2026-10-08T09:15:00.000Z",
+              "slot_end": "2026-10-08T09:30:00.000Z",
+              "next_state": "discharge_to_grid",
+              "next_change_at": "2026-10-08T11:45:00.000Z",
+              "plan": [
+                {
+                  "start": "2026-10-08T09:15:00.000Z",
+                  "state": "zero_export",
+                  "soc": 80.0
+                },
+                {
+                  "start": "2026-10-08T11:45:00.000Z",
+                  "state": "discharge_to_grid",
+                  "soc": 60.8
+                },
+                {
+                  "start": "2026-10-08T12:45:00.000Z",
+                  "state": "zero_export",
+                  "soc": 70.8
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:battery_plan_soc",
+            "value": 64.5,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:01:31.388Z",
+              "computed_at": "2026-10-08T09:01:30.000Z"
+            }
+          },
+          {
+            "id": "gw-7f3a9c:heatpump_plan_state",
+            "value": "normal",
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:01:32.203Z",
+              "computed_at": "2026-10-08T09:01:30.000Z",
+              "slot_start": "2026-10-08T09:15:00.000Z",
+              "slot_end": "2026-10-08T09:30:00.000Z",
+              "next_state": "recommended",
+              "next_change_at": "2026-10-08T10:45:00.000Z",
+              "plan": [
+                {
+                  "start": "2026-10-08T09:15:00.000Z",
+                  "state": "normal"
+                },
+                {
+                  "start": "2026-10-08T10:45:00.000Z",
+                  "state": "recommended"
+                },
+                {
+                  "start": "2026-10-08T12:45:00.000Z",
+                  "state": "normal"
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:alarm",
+            "value": true,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:12:44.301Z",
+              "computed_at": "2026-10-08T09:12:44.000Z",
+              "active_count": 3,
+              "critical_count": 1,
+              "alarms": [
+                {
+                  "rule": "Battery temperature high",
+                  "severity": "critical",
+                  "since": "2026-10-08T09:12:41.000Z"
+                },
+                {
+                  "rule": "Heat pump alarm",
+                  "severity": "warning",
+                  "since": "2026-10-08T07:30:00.000Z"
+                },
+                {
+                  "rule": "PV string voltage out of range",
+                  "severity": "warning",
+                  "since": "2026-10-08T08:44:10.000Z"
+                }
+              ]
+            }
+          },
+          {
+            "id": "gw-7f3a9c:alarm_8b3f6c1e-2d4a-4e5b-9c7d-1a2b3c4d5e6f",
+            "value": true,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:12:44.301Z",
+              "computed_at": "2026-10-08T09:12:44.000Z",
+              "rule_type": "threshold",
+              "severity": "critical",
+              "since": "2026-10-08T09:12:41.000Z",
+              "message": "Battery temperature 52.3 °C is above 50 °C",
+              "acknowledged": false,
+              "in_maintenance": false
+            }
+          },
+          {
+            "id": "gw-7f3a9c:alarm_9c4a7d2f-3e5b-4f6c-8d9e-2b3c4d5e6f70",
+            "value": false,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:12:44.301Z",
+              "computed_at": "2026-10-08T09:12:44.000Z",
+              "rule_type": "signal-staleness",
+              "severity": "warning",
+              "since": null,
+              "message": null,
+              "acknowledged": false,
+              "in_maintenance": false
+            }
+          },
+          {
+            "id": "gw-7f3a9c:alarm_ad5b8e3a-4f6c-4a7d-9e0f-3c4d5e6f7081",
+            "value": true,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:12:44.301Z",
+              "computed_at": "2026-10-08T09:12:44.000Z",
+              "rule_type": "flags",
+              "severity": "warning",
+              "since": "2026-10-08T07:30:00.000Z",
+              "message": "Heat pump reports alarm 162 (high pressure)",
+              "acknowledged": true,
+              "in_maintenance": true
+            }
+          },
+          {
+            "id": "gw-7f3a9c:alarm_be6c9f4b-5a7d-4b8e-8f1a-4d5e6f708192",
+            "value": true,
+            "ts": "2026-10-08T09:15:02.000Z",
+            "attributes": {
+              "cloud_synced": true,
+              "synced_at": "2026-10-08T09:12:44.301Z",
+              "computed_at": "2026-10-08T09:12:44.000Z",
+              "rule_type": "range",
+              "severity": "warning",
+              "since": "2026-10-08T08:44:10.000Z",
+              "message": null,
+              "acknowledged": false,
+              "in_maintenance": false
+            }
           }
         ]
       },
@@ -567,6 +2048,21 @@
             "id": "gw-7f3a9c:solar_excess_power",
             "value": 2160,
             "ts": "2026-10-08T09:15:04.000Z"
+          },
+          {
+            "id": "gw-7f3a9c:driver_problem",
+            "value": true,
+            "ts": "2026-10-08T09:15:04.000Z",
+            "attributes": {
+              "drivers": [
+                {
+                  "id": "modbus-grid",
+                  "state": "failed",
+                  "since": "2026-10-08T09:15:04.000Z",
+                  "error": "Connection timed out"
+                }
+              ]
+            }
           }
         ]
       },
