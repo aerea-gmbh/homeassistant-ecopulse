@@ -1,0 +1,93 @@
+# CI for the EcoPulse Home Assistant integration (#622).
+#
+# - lint:     ruff check + format check
+# - test:     pytest against the MINIMUM supported Home Assistant (hacs.json: 2025.10, Python 3.13)
+#             and the CURRENT one (2026.10, Python 3.14). Each leg installs with that release's own
+#             package_constraints.txt (copied to ci/), so it resolves what a real HA install has.
+# - hassfest: Home Assistant's manifest/translation/config-flow validator, from its official image.
+#
+# HACS' own validator (hacs/action) needs the GitHub API of the repository it checks, so it cannot
+# run here; it lives in .github/workflows/validate.yml and runs on the public GitHub mirror.
+
+stages:
+  - test
+
+# Every runner of the group has run_untagged=false; without tags no job is ever picked up (review
+# HIGH-1: pipelines sat in pending). Same runner and #340 auto-cancel convention as the cloud repo.
+default:
+  tags:
+    - core01
+    - container
+  interruptible: true
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# Image pulls and PyPI are network; an infra blip retries, a real finding (script_failure) never.
+.network_retry: &network_retry
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - api_failure
+
+lint:
+  stage: test
+  image: python:3.14-slim
+  <<: *network_retry
+  cache:
+    key: pip-lint
+    paths: [.cache/pip]
+  script:
+    - pip install "$(grep -E '^ruff==' requirements_test.txt)"
+    - ruff check .
+    - ruff format --check .
+
+test:
+  stage: test
+  # The full image, not -slim: HA 2025.10 pins lru-dict, which has no wheel for every platform and
+  # then needs a compiler (measured on arm64).
+  image: python:${PYTHON_VERSION}
+  <<: *network_retry
+  parallel:
+    matrix:
+      - HA_LEG: minimum
+        PYTHON_VERSION: "3.13"
+        REQUIREMENTS: requirements_test_min.txt
+        CONSTRAINTS: ci/constraints-2025.10.4.txt
+      - HA_LEG: current
+        PYTHON_VERSION: "3.14"
+        REQUIREMENTS: requirements_test.txt
+        CONSTRAINTS: ci/constraints-2026.10.0.txt
+  cache:
+    key: pip-$HA_LEG
+    paths: [.cache/pip]
+  script:
+    - pip install -c "$CONSTRAINTS" -r "$REQUIREMENTS"
+    - pytest --junitxml=report-$HA_LEG.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report-$HA_LEG.xml
+
+hassfest:
+  stage: test
+  image:
+    name: ghcr.io/home-assistant/hassfest:latest
+    entrypoint: [""]
+  <<: *network_retry
+  script:
+    # The image's entrypoint discovers custom_components/*/manifest.json relative to the cwd.
+    - cd "$CI_PROJECT_DIR" && /usr/src/homeassistant/script/hassfest/docker/entrypoint.sh

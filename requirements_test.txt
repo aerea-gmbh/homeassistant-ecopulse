@@ -1,0 +1,4 @@
+# Current Home Assistant (2026.10.0, Python 3.14). Install with
+#   pip install -c ci/constraints-2026.10.0.txt -r requirements_test.txt
+pytest-homeassistant-custom-component==0.13.371
+ruff==0.16.10

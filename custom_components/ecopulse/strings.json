@@ -1,0 +1,56 @@
+{
+  "config": {
+    "flow_title": "EcoPulse gateway {name}",
+    "step": {
+      "user": {
+        "title": "Connect an EcoPulse gateway",
+        "description": "Enter the gateway's address on your network and the Home Assistant integration token. You create the token in the EcoPulse web app, on the gateway's Home Assistant settings; it is shown only once.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Integration token"
+        },
+        "data_description": {
+          "host": "IP address or host name of the gateway on your LAN.",
+          "port": "Port of the gateway's local web server (8080 unless changed).",
+          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "EcoPulse gateway found",
+        "description": "Found gateway {id} at {host}. Enter its Home Assistant integration token from the EcoPulse web app.",
+        "data": {
+          "token": "Integration token"
+        },
+        "data_description": {
+          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Token for {name} no longer valid",
+        "description": "The gateway rejected the integration token, usually because it was rotated in the EcoPulse web app. Enter the new token.",
+        "data": {
+          "token": "Integration token"
+        },
+        "data_description": {
+          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the gateway. Check the host and port and that the gateway's local web server is enabled.",
+      "invalid_auth": "The gateway rejected the token. Copy it again from the EcoPulse web app or rotate it there.",
+      "invalid_token_format": "This is not an integration token; it must start with ecp_ha_.",
+      "not_enabled": "Home Assistant is not enabled for this gateway, or its firmware is too old. Enable it in the EcoPulse web app and wait for the configuration to reach the gateway.",
+      "rate_limited": "Too many failed attempts from this address. Wait a few minutes and try again.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This gateway is already configured.",
+      "invalid_discovery_info": "The discovered gateway did not announce its id.",
+      "reauth_successful": "The token was updated.",
+      "unsupported_api_version": "This gateway does not offer a Home Assistant API version this integration supports. Update the integration.",
+      "wrong_gateway": "This token belongs to a different gateway."
+    }
+  }
+}

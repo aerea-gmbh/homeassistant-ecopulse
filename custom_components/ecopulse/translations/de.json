@@ -1,0 +1,56 @@
+{
+  "config": {
+    "flow_title": "EcoPulse-Gateway {name}",
+    "step": {
+      "user": {
+        "title": "EcoPulse-Gateway verbinden",
+        "description": "Gib die Adresse des Gateways in deinem Netzwerk und den Home-Assistant-Integrationstoken ein. Den Token erzeugst du in der EcoPulse-Web-App in den Home-Assistant-Einstellungen des Gateways; er wird nur einmal angezeigt.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Integrationstoken"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname des Gateways im LAN.",
+          "port": "Port des lokalen Webservers des Gateways (8080, sofern nicht geändert).",
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "EcoPulse-Gateway gefunden",
+        "description": "Gateway {id} unter {host} gefunden. Gib seinen Home-Assistant-Integrationstoken aus der EcoPulse-Web-App ein.",
+        "data": {
+          "token": "Integrationstoken"
+        },
+        "data_description": {
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Token für {name} nicht mehr gültig",
+        "description": "Das Gateway hat den Integrationstoken abgelehnt, meist weil er in der EcoPulse-Web-App rotiert wurde. Gib den neuen Token ein.",
+        "data": {
+          "token": "Integrationstoken"
+        },
+        "data_description": {
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Das Gateway ist nicht erreichbar. Prüfe Host und Port und ob der lokale Webserver des Gateways aktiviert ist.",
+      "invalid_auth": "Das Gateway hat den Token abgelehnt. Kopiere ihn erneut aus der EcoPulse-Web-App oder rotiere ihn dort.",
+      "invalid_token_format": "Das ist kein Integrationstoken; er muss mit ecp_ha_ beginnen.",
+      "not_enabled": "Home Assistant ist für dieses Gateway nicht aktiviert oder seine Firmware ist zu alt. Aktiviere es in der EcoPulse-Web-App und warte, bis die Konfiguration das Gateway erreicht hat.",
+      "rate_limited": "Zu viele Fehlversuche von dieser Adresse. Warte ein paar Minuten und versuche es erneut.",
+      "unknown": "Unerwarteter Fehler."
+    },
+    "abort": {
+      "already_configured": "Dieses Gateway ist bereits eingerichtet.",
+      "invalid_discovery_info": "Das gefundene Gateway hat seine Kennung nicht angekündigt.",
+      "reauth_successful": "Der Token wurde aktualisiert.",
+      "unsupported_api_version": "Dieses Gateway bietet keine Home-Assistant-API-Version an, die diese Integration unterstützt. Aktualisiere die Integration.",
+      "wrong_gateway": "Dieser Token gehört zu einem anderen Gateway."
+    }
+  }
+}

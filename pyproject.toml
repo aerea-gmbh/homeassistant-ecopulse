@@ -1,0 +1,25 @@
+# Tooling only: the integration itself is loaded by Home Assistant from custom_components/ecopulse,
+# it is not an installable package.
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "ASYNC", "RUF", "PL", "PT", "C4", "RET", "TRY"]
+ignore = [
+    "PLR2004", # HTTP status codes read better as literals next to the contract's numbers
+    "TRY003",  # short exception messages at the raise site are the HA style
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR0911", "PLR0913", "PLR0915", "TRY", "ASYNC109"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components", "tests"]
+force-sort-within-sections = true
+combine-as-imports = true
