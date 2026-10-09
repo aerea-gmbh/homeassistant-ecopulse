@@ -68,7 +68,8 @@ Every gateway device gets diagnostic binary sensors for what the gateway sees it
 gateway, so they keep telling the truth while the internet or EcoPulse is down:
 
 - **Cloud connection** (`connectivity`): on while the gateway is connected to EcoPulse. It follows the connection
-  as is, with no grace period, so a short reconnect (for example a certificate renewal) shows as a short off.
+  as is, with no grace period, so a short reconnect (for example a certificate renewal) shows as a short off. A
+  gateway that is not set up for EcoPulse's cloud yet shows it off for good.
 - **Driver problem** (`problem`): on while one of the gateway's device drivers has failed, or has been trying to
   reach its device for more than 120 seconds. The attribute `drivers` lists those drivers (up to 8) with `id`,
   `state` (`failed` or `connecting`), `since` and `error` (a plain-language reason, or null). Which *device* is
