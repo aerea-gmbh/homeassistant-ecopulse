@@ -165,9 +165,27 @@ def test_a_non_finite_value_is_unknown(value: float) -> None:
     assert detector.update(value, at(200)) == at(320)
 
 
-@pytest.mark.parametrize("value", ["2000", True, [1], {"w": 1}])
-def test_a_value_that_is_no_number_is_unknown(value: object) -> None:
-    detector = SurplusDetector(SETTINGS)
+# Threshold 0 and no delays: here 1 W already turns the sensor on, so "unknown" and "a small
+# number" lead to different states (with threshold 500 both stay off and prove nothing).
+INSTANT_AT_ZERO = SurplusSettings(
+    threshold_w=0, hysteresis_w=0, on_delay=timedelta(), off_delay=timedelta()
+)
 
-    assert detector.update(value, at(0)) is None
+
+@pytest.mark.parametrize("value", ["2000", True, False, [1], {"w": 1}])
+def test_a_value_that_is_no_number_is_unknown(value: object) -> None:
+    detector = SurplusDetector(INSTANT_AT_ZERO)
+
+    detector.update(value, at(0))
+
     assert not detector.is_on
+
+
+@pytest.mark.parametrize("value", [1, 0, 0.5])
+def test_a_number_at_or_above_a_zero_threshold_turns_it_on(value: float) -> None:
+    # Counterpart of the test above: the setting does let a number through.
+    detector = SurplusDetector(INSTANT_AT_ZERO)
+
+    detector.update(value, at(0))
+
+    assert detector.is_on

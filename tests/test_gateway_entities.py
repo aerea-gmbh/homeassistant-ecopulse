@@ -17,6 +17,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from .conftest import wait_until
@@ -185,3 +186,63 @@ async def test_customisations_of_both_entities_survive_a_reload(
     # Newer HA versions restore a deleted entry's name on re-creation, so the names alone would
     # not show a remove-and-recreate.
     assert removed == []
+
+
+def _only_gateway_entities(gateway: FakeGateway) -> None:
+    gateway.catalog["devices"] = []
+    gateway.snapshot["devices"] = []
+    gateway.snapshot["values"] = [v for v in gateway.snapshot["values"] if v["id"] == SOLAR_EXCESS]
+
+
+async def test_a_catalog_with_gateway_entities_but_no_devices_sets_up_the_gateway_device(
+    hass: HomeAssistant, gateway: FakeGateway, config_entry: MockConfigEntry, fast_backoff: Any
+) -> None:
+    _only_gateway_entities(gateway)
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await wait_until(hass, lambda: config_entry.runtime_data.coordinator.connected)
+
+    gateway_device = device(hass, GATEWAY_DEVICE)
+    assert gateway_device is not None
+    assert (gateway_device.name, gateway_device.model) == ("Haus Nord", "EdgeGateway")
+    registry = er.async_get(hass)
+    for unique_id, platform in ((SOLAR_EXCESS, "sensor"), (SURPLUS_AVAILABLE, "binary_sensor")):
+        registry_entry = registry.async_get(entity_id(hass, unique_id, platform))
+        assert registry_entry is not None
+        assert registry_entry.device_id == gateway_device.id
+
+    gateway.push("values", _excess(640))
+    await wait_until(hass, lambda: state(hass, SOLAR_EXCESS).state == "640")
+
+
+async def test_a_catalog_that_loses_every_device_prunes_nothing_even_with_gateway_entities(
+    hass: HomeAssistant,
+    loaded_entry: MockConfigEntry,
+    gateway: FakeGateway,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The "never prune on an empty catalog" rule (registry cleanup) holds with gateway entities
+    # too: a push that rendered no devices must not wipe the signal entities.
+    registry = er.async_get(hass)
+    before = {
+        (e.domain, e.unique_id)
+        for e in er.async_entries_for_config_entry(registry, loaded_entry.entry_id)
+    }
+    _only_gateway_entities(gateway)
+    new_revision = "4d2a8e61b7c3f095"
+    gateway.catalog["catalogRevision"] = new_revision
+    gateway.snapshot["catalogRevision"] = new_revision
+    gateway.push("catalog", {"catalogRevision": new_revision})
+    await wait_until(
+        hass, lambda: loaded_entry.runtime_data.coordinator.catalog.revision == new_revision
+    )
+    await hass.async_block_till_done()
+
+    after = {
+        (e.domain, e.unique_id)
+        for e in er.async_entries_for_config_entry(registry, loaded_entry.entry_id)
+    }
+    assert after == before
+    assert ("sensor", SOC) in after
+    assert device(hass, BATTERY_DEVICE) is not None
+    assert "serves no devices" in caplog.text

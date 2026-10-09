@@ -16,8 +16,13 @@ from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.const import ATTR_DEVICE_CLASS, STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry, mock_restore_cache
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+    mock_restore_cache,
+)
 
 from custom_components.ecopulse.const import (
     CONF_SURPLUS_HYSTERESIS,
@@ -86,7 +91,7 @@ class FakeClock:
         await hass.async_block_till_done()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def clock() -> Generator[FakeClock]:
     fake = FakeClock()
     with (
@@ -97,6 +102,14 @@ def clock() -> Generator[FakeClock]:
         ),
     ):
         yield fake
+
+
+_DEFAULT_OPTIONS = {
+    CONF_SURPLUS_THRESHOLD: 500,
+    CONF_SURPLUS_HYSTERESIS: 100,
+    CONF_SURPLUS_ON_DELAY: 120,
+    CONF_SURPLUS_OFF_DELAY: 120,
+}
 
 
 def _surplus(hass: HomeAssistant) -> State:
@@ -332,3 +345,30 @@ async def test_unloading_cancels_a_pending_switch(
 
     assert await hass.config_entries.async_unload(loaded_entry.entry_id)
     assert clock.pending == []
+
+
+async def test_the_off_delay_runs_on_home_assistants_own_time_tracker(
+    hass: HomeAssistant, loaded_entry: MockConfigEntry, gateway: FakeGateway
+) -> None:
+    # No FakeClock: the one test that relies on async_track_point_in_utc_time itself (callback
+    # signature, fires at the point). With the stream down no read timeout can interfere when
+    # async_fire_time_changed fires every due loop timer; the on-delay is 0 so switching on
+    # needs no timer either.
+    hass.config_entries.async_update_entry(
+        loaded_entry, options={**_DEFAULT_OPTIONS, CONF_SURPLUS_ON_DELAY: 0}
+    )
+    await _excess(hass, loaded_entry, gateway, 2160)
+    assert _surplus(hass).state == STATE_ON
+
+    gateway.enabled = False
+    gateway.drop_streams()
+    await wait_until(hass, lambda: not loaded_entry.runtime_data.coordinator.connected)
+    lost_at = dt_util.utcnow()
+
+    async_fire_time_changed(hass, lost_at + timedelta(seconds=110))
+    await hass.async_block_till_done()
+    assert _surplus(hass).state == STATE_ON
+
+    async_fire_time_changed(hass, lost_at + timedelta(seconds=125))
+    await hass.async_block_till_done()
+    assert _surplus(hass).state == STATE_OFF
