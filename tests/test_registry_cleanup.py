@@ -86,7 +86,7 @@ async def test_an_empty_catalog_removes_nothing(
 
     await _push_catalog_change(hass, loaded_entry, gateway)
 
-    assert len(before) == 6
+    assert len(before) == 8  # six signals, solar_excess_power, surplus_available
     assert _registry_ids(hass, loaded_entry) == before
     assert device(hass, BATTERY_DEVICE) is not None
     assert state(hass, SOC).state == "unavailable"

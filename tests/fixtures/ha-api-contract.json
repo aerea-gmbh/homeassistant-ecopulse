@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "apiVersion": 1,
   "basePath": "/api/ha/v1",
   "auth": {
@@ -112,7 +112,8 @@
     "gatewayProperties": [
       "id",
       "name",
-      "firmwareVersion"
+      "firmwareVersion",
+      "entities"
     ],
     "deviceProperties": [
       "id",
@@ -142,6 +143,22 @@
       "stateClass",
       "suggestedDisplayPrecision",
       "entityCategory"
+    ]
+  },
+  "gatewayEntities": {
+    "uniqueIdTemplate": "{gatewayId}:{key}",
+    "entities": [
+      {
+        "key": "solar_excess_power",
+        "name": "Solar excess power",
+        "platform": "sensor",
+        "unit": "W",
+        "deviceClass": "power",
+        "stateClass": "measurement",
+        "suggestedDisplayPrecision": 0,
+        "entityCategory": null,
+        "enabledByDefault": true
+      }
     ]
   },
   "stream": {
@@ -371,7 +388,20 @@
       "gateway": {
         "id": "gw-7f3a9c",
         "name": "Haus Nord",
-        "firmwareVersion": "2026.10.1"
+        "firmwareVersion": "2026.10.1",
+        "entities": [
+          {
+            "uniqueId": "gw-7f3a9c:solar_excess_power",
+            "name": "Solar excess power",
+            "platform": "sensor",
+            "unit": "W",
+            "deviceClass": "power",
+            "stateClass": "measurement",
+            "suggestedDisplayPrecision": 0,
+            "entityCategory": null,
+            "enabledByDefault": true
+          }
+        ]
       },
       "devices": [
         {
@@ -513,6 +543,11 @@
             "id": "5b1d6c7f-9f0e-4d8a-9b2c-4f6071829304",
             "value": null,
             "ts": "2026-10-08T09:14:58.000Z"
+          },
+          {
+            "id": "gw-7f3a9c:solar_excess_power",
+            "value": null,
+            "ts": "2026-10-08T09:15:02.000Z"
           }
         ]
       },
@@ -526,6 +561,11 @@
           {
             "id": "3e9b4a5f-7d8c-4b6e-9f0a-2d4e5f607182",
             "value": false,
+            "ts": "2026-10-08T09:15:04.000Z"
+          },
+          {
+            "id": "gw-7f3a9c:solar_excess_power",
+            "value": 2160,
             "ts": "2026-10-08T09:15:04.000Z"
           }
         ]

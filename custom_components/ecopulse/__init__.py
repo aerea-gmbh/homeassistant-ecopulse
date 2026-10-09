@@ -23,6 +23,7 @@ from .api import (
 from .const import BACKOFF_INITIAL_SECONDS, DOMAIN, GATEWAY_MODEL, MANUFACTURER
 from .coordinator import EcoPulseStreamCoordinator, wait_after_failure
 from .models import Catalog
+from .surplus import surplus_available_unique_id, surplus_source
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,8 +65,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> 
         # DHCP handed the address to another gateway; zeroconf will bring the right address.
         raise ConfigEntryNotReady(f"Found gateway {catalog.gateway_id} at this address")
 
-    if catalog.devices:
+    if catalog.devices or catalog.gateway_entities:
         _register_gateway_device(hass, entry, catalog)
+    if catalog.devices:
         _remove_stale_registry_entries(hass, entry, catalog)
     elif catalog.revision:  # served by the gateway, not the pending stand-in
         # Never prune on an empty catalog (a push that rendered nothing, a projection bug, the
@@ -96,7 +98,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) ->
 
 @callback
 def _register_gateway_device(hass: HomeAssistant, entry: ConfigEntry, catalog: Catalog) -> None:
-    """The gateway is the parent (``via_device``) of every aggregate device."""
+    """The gateway is the parent (``via_device``) of every aggregate device and carries the
+    gateway's own entities (#623)."""
     dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, catalog.gateway_id)},
@@ -114,11 +117,15 @@ def _register_gateway_device(hass: HomeAssistant, entry: ConfigEntry, catalog: C
 def _remove_stale_registry_entries(
     hass: HomeAssistant, entry: ConfigEntry, catalog: Catalog
 ) -> None:
-    """Drop entities and devices the catalog no longer has (signal or aggregate deleted)."""
+    """Drop entities and devices the catalog no longer has (signal or aggregate deleted, or a
+    gateway entity the edge stopped serving, which takes the plugin's derived sensor with it)."""
     entity_registry = er.async_get(hass)
     # (platform, unique id): a signal that moved sensor <-> binary_sensor keeps its unique id,
     # and its entry on the old platform would otherwise stay behind as an orphan.
     current_ids = {(e.platform, e.unique_id) for d in catalog.devices for e in d.entities}
+    current_ids |= {(e.platform, e.unique_id) for e in catalog.gateway_entities}
+    if (source := surplus_source(catalog)) is not None:
+        current_ids.add((Platform.BINARY_SENSOR, surplus_available_unique_id(source)))
     for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
         if (registry_entry.domain, registry_entry.unique_id) not in current_ids:
             entity_registry.async_remove(registry_entry.entity_id)

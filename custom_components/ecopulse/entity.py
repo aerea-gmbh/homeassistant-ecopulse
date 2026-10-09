@@ -1,4 +1,8 @@
-"""Base entity: one catalog signal on its aggregate device, fed by the stream coordinator."""
+"""Base entity: one catalog entity, fed by the stream coordinator.
+
+A signal sits on its aggregate device; a gateway entity (``device`` None, schema 2, #623) sits on
+the gateway device and is available exactly while the stream is connected.
+"""
 
 from __future__ import annotations
 
@@ -21,11 +25,11 @@ class EcoPulseEntity(Entity):
     def __init__(
         self,
         coordinator: EcoPulseStreamCoordinator,
-        device: CatalogDevice,
+        device: CatalogDevice | None,
         entity: CatalogEntity,
     ) -> None:
         self.coordinator = coordinator
-        self._device_id = device.id
+        self._device_id = device.id if device else None
         self._attr_unique_id = entity.unique_id
         self._attr_name = entity.name
         self._attr_entity_category = (
@@ -34,16 +38,22 @@ class EcoPulseEntity(Entity):
             else None
         )
         self._attr_entity_registry_enabled_default = entity.enabled_by_default
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device.id)},
-            name=device.name,
-            manufacturer=device.manufacturer,
-            model=device.model,
-            via_device=(DOMAIN, coordinator.catalog.gateway_id),
+        self._attr_device_info = (
+            DeviceInfo(
+                identifiers={(DOMAIN, device.id)},
+                name=device.name,
+                manufacturer=device.manufacturer,
+                model=device.model,
+                via_device=(DOMAIN, coordinator.catalog.gateway_id),
+            )
+            if device
+            else gateway_device_info(coordinator)
         )
 
     @property
     def available(self) -> bool:
+        if self._device_id is None:
+            return self.coordinator.connected
         return self.coordinator.is_device_available(self._device_id)
 
     @property
@@ -61,3 +71,8 @@ class EcoPulseEntity(Entity):
     @callback
     def _handle_update(self) -> None:
         self.async_write_ha_state()
+
+
+def gateway_device_info(coordinator: EcoPulseStreamCoordinator) -> DeviceInfo:
+    """Links to the gateway device that setup registers with its full details."""
+    return DeviceInfo(identifiers={(DOMAIN, coordinator.catalog.gateway_id)})

@@ -323,7 +323,7 @@ async def test_setup_against_a_gateway_without_ha_enabled_waits_retry_later_then
     assert er.async_entries_for_config_entry(er.async_get(hass), config_entry.entry_id) == []
 
     gateway.enabled = True
-    await wait_until(hass, lambda: _sensor_count(hass, config_entry) == 5)
+    await wait_until(hass, lambda: _sensor_count(hass, config_entry) == 6)
     await wait_until(hass, lambda: state(hass, SOC).state == "87")
 
 
@@ -340,7 +340,7 @@ async def test_setup_while_rate_limited_honours_retry_after_before_the_first_att
     await asyncio.sleep(0.5)
     assert len(gateway.requests) == requests_at_setup  # still waiting out Retry-After: 1
 
-    await wait_until(hass, lambda: _sensor_count(hass, config_entry) == 5)
+    await wait_until(hass, lambda: _sensor_count(hass, config_entry) == 6)
 
 
 def _sensor_count(hass: HomeAssistant, entry: MockConfigEntry) -> int:

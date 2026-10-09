@@ -24,6 +24,44 @@ data path, no MQTT broker, no polling.
 Read-only in this version. Using Home Assistant entities as inputs for EcoPulse and controlling EcoPulse from Home
 Assistant are planned.
 
+## Solar excess and "Surplus available"
+
+On a gateway with an EcoPulse PV assistant (PV-excess wallbox or heater), the gateway device gets two more
+entities for your own automations:
+
+- **Solar excess power** (`sensor`, W): the PV surplus a load switched by Home Assistant may use. It is the
+  surplus left over *after* the EcoPulse assistants, so Home Assistant never starts a load on power the wallbox is
+  about to take. **Positive** = surplus available; **negative** = deficit (the house draws from the grid or from
+  the battery). *Unknown* while the gateway has no usable grid reading. Updated about every 2 seconds.
+- **Surplus available** (`binary_sensor`): turns **on** once the solar excess has been at or above a threshold for
+  a whole on-delay, and **off** once it has been below *threshold minus hysteresis* for a whole off-delay. A dip
+  restarts the delay, so a passing cloud does not switch anything. A missing value (gateway unreachable, no grid
+  reading) counts as *no surplus*: the sensor turns off after the off-delay, it never turns unavailable, so an
+  automation waiting for "off" still fires. Its state survives a Home Assistant restart.
+
+Set threshold (default 500 W), hysteresis (default 100 W), on-delay and off-delay (default 120 s each) under
+*Settings > Devices & services > EcoPulse > Configure*. Changes apply immediately, without a restart.
+
+Example: run the pool pump on surplus.
+
+```yaml
+automation:
+  - alias: Pool pump on solar surplus
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.haus_nord_surplus_available  # named after your gateway
+        to: ["on", "off"]
+    actions:
+      - action: >-
+          {{ 'switch.turn_on' if trigger.to_state.state == 'on' else 'switch.turn_off' }}
+        target:
+          entity_id: switch.pool_pump
+```
+
+The excess is measured at the grid, so once the load runs, its own draw is no longer excess. Set the threshold to
+the load's power and the hysteresis about as large: a 1.2 kW heater with threshold 1200 W and hysteresis 1200 W
+starts when 1.2 kW are spare and keeps running as long as the excess stays at 0 W or above.
+
 ## Requirements
 
 - Home Assistant **2025.10** or newer.

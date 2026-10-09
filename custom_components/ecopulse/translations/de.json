@@ -52,5 +52,32 @@
       "unsupported_api_version": "Dieses Gateway bietet keine Home-Assistant-API-Version an, die diese Integration unterstützt. Aktualisiere die Integration.",
       "wrong_gateway": "Dieser Token gehört zu einem anderen Gateway."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Überschuss verfügbar",
+        "description": "Wann der Binärsensor „Überschuss verfügbar“ ein- und ausschaltet, abhängig vom PV-Überschuss des Gateways. Er schaltet ein, sobald der Überschuss die ganze Einschaltverzögerung lang mindestens die Schwelle erreicht hat, und aus, sobald er die ganze Ausschaltverzögerung lang unter der Schwelle minus Hysterese lag. Ein fehlender Wert zählt als kein Überschuss. Änderungen gelten sofort.",
+        "data": {
+          "surplus_threshold_w": "Schwelle",
+          "surplus_hysteresis_w": "Hysterese",
+          "surplus_on_delay_s": "Einschaltverzögerung",
+          "surplus_off_delay_s": "Ausschaltverzögerung"
+        },
+        "data_description": {
+          "surplus_threshold_w": "PV-Überschuss, ab dem Überschuss als verfügbar gilt.",
+          "surplus_hysteresis_w": "Überschuss gilt erst unterhalb der Schwelle minus diesem Wert als weg, damit ein Wert um die Schwelle den Sensor nicht hin- und herschalten lässt.",
+          "surplus_on_delay_s": "Wie lange der Überschuss mindestens auf der Schwelle bleiben muss, bevor der Sensor einschaltet.",
+          "surplus_off_delay_s": "Wie lange der Überschuss unter der Schwelle minus Hysterese liegen (oder unbekannt sein) muss, bevor der Sensor ausschaltet."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "surplus_available": {
+        "name": "Überschuss verfügbar"
+      }
+    }
   }
 }
