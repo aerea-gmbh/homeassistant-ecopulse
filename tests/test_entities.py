@@ -27,6 +27,8 @@ from .helpers import (
     GRID_POWER,
     METER_DEVICE,
     SOC,
+    SOLAR_EXCESS,
+    SURPLUS_AVAILABLE,
     WALLBOX_DEVICE,
     WALLBOX_SETPOINT,
     device,
@@ -71,6 +73,8 @@ async def test_every_catalog_entity_is_registered_with_its_unique_id(
             ("binary_sensor", CHARGE_ENABLE),
             ("sensor", WALLBOX_SETPOINT),
             ("sensor", GRID_POWER),
+            ("sensor", SOLAR_EXCESS),
+            ("binary_sensor", SURPLUS_AVAILABLE),
         ]
     )
 

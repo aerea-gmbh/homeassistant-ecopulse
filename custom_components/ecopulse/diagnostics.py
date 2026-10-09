@@ -56,7 +56,12 @@ async def async_get_config_entry_diagnostics(
                 }
                 for device in catalog.devices
             ],
+            "gateway_entities": [
+                {"unique_id": e.unique_id, "platform": e.platform, "unit": e.unit}
+                for e in catalog.gateway_entities
+            ],
         },
+        "options": dict(entry.options),
         "stream": {
             "connected": coordinator.connected,
             "values_known": len(coordinator.values),

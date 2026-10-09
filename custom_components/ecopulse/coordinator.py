@@ -91,6 +91,8 @@ class EcoPulseStreamCoordinator:
         self._client = client
         self.catalog = catalog
         self._device_of = catalog.device_of()
+        # Gateway entities take values like signals but belong to no device (#623).
+        self._value_ids = set(self._device_of) | {e.unique_id for e in catalog.gateway_entities}
         self.values: dict[str, SignalValue] = {}
         self._device_available: dict[str, bool] = {}
         self.connected = False
@@ -222,7 +224,7 @@ class EcoPulseStreamCoordinator:
         stored = []
         for item in values:
             unique_id = item.get("id") if isinstance(item, dict) else None
-            if not isinstance(unique_id, str) or unique_id not in self._device_of:
+            if not isinstance(unique_id, str) or unique_id not in self._value_ids:
                 continue  # contract onUnknownValueId: ignore, never create an entity
             self.values[unique_id] = SignalValue(item.get("value"), item.get("ts"))
             stored.append(unique_id)

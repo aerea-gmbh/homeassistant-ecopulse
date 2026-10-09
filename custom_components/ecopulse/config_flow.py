@@ -1,6 +1,8 @@
 """Config flow: host + port + integration token, zeroconf discovery, reauth (ADR-230 §4, §8).
 
 ``GET /info`` is the credential check; the gateway id it returns is the entry's unique id.
+The options flow holds the settings of "Surplus available" (#623); they apply live, the
+binary sensor listens for entry updates, so saving them does not reconnect the stream.
 """
 
 from __future__ import annotations
@@ -9,10 +11,19 @@ from collections.abc import Mapping
 import logging
 from typing import Any
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -29,8 +40,18 @@ from .api import (
 )
 from .const import (
     API_VERSION,
+    CONF_SURPLUS_HYSTERESIS,
+    CONF_SURPLUS_OFF_DELAY,
+    CONF_SURPLUS_ON_DELAY,
+    CONF_SURPLUS_THRESHOLD,
     DEFAULT_PORT,
+    DEFAULT_SURPLUS_HYSTERESIS_W,
+    DEFAULT_SURPLUS_OFF_DELAY_SECONDS,
+    DEFAULT_SURPLUS_ON_DELAY_SECONDS,
+    DEFAULT_SURPLUS_THRESHOLD_W,
     DOMAIN,
+    MAX_SURPLUS_DELAY_SECONDS,
+    MAX_SURPLUS_POWER_W,
     TOKEN_PREFIX,
     ZEROCONF_TXT_API,
     ZEROCONF_TXT_ID,
@@ -40,6 +61,34 @@ from .models import GatewayInfo
 _LOGGER = logging.getLogger(__name__)
 
 _TOKEN_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
+
+
+def _whole_number(maximum: int, unit: str) -> vol.All:
+    """A box with a unit; the selector checks the range, the coercion stores an int."""
+    return vol.All(
+        NumberSelector(
+            NumberSelectorConfig(
+                min=0, max=maximum, step=1, mode=NumberSelectorMode.BOX, unit_of_measurement=unit
+            )
+        ),
+        vol.Coerce(int),
+    )
+
+
+_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_SURPLUS_THRESHOLD): _whole_number(MAX_SURPLUS_POWER_W, "W"),
+        vol.Required(CONF_SURPLUS_HYSTERESIS): _whole_number(MAX_SURPLUS_POWER_W, "W"),
+        vol.Required(CONF_SURPLUS_ON_DELAY): _whole_number(MAX_SURPLUS_DELAY_SECONDS, "s"),
+        vol.Required(CONF_SURPLUS_OFF_DELAY): _whole_number(MAX_SURPLUS_DELAY_SECONDS, "s"),
+    }
+)
+_OPTION_DEFAULTS = {
+    CONF_SURPLUS_THRESHOLD: DEFAULT_SURPLUS_THRESHOLD_W,
+    CONF_SURPLUS_HYSTERESIS: DEFAULT_SURPLUS_HYSTERESIS_W,
+    CONF_SURPLUS_ON_DELAY: DEFAULT_SURPLUS_ON_DELAY_SECONDS,
+    CONF_SURPLUS_OFF_DELAY: DEFAULT_SURPLUS_OFF_DELAY_SECONDS,
+}
 
 
 class _FlowError(Exception):
@@ -52,6 +101,11 @@ class _FlowError(Exception):
 class EcoPulseConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     MINOR_VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> EcoPulseOptionsFlow:
+        return EcoPulseOptionsFlow()
 
     def __init__(self) -> None:
         self._host: str | None = None
@@ -178,3 +232,15 @@ class EcoPulseConfigFlow(ConfigFlow, domain=DOMAIN):
         except Exception as err:
             _LOGGER.exception("Unexpected error validating the gateway")
             raise _FlowError("unknown") from err
+
+
+class EcoPulseOptionsFlow(OptionsFlow):
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                _OPTIONS_SCHEMA, {**_OPTION_DEFAULTS, **self.config_entry.options}
+            ),
+        )

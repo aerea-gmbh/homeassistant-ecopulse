@@ -1,4 +1,4 @@
-"""Sensors: every catalog entity with ``platform: sensor``."""
+"""Sensors: every catalog entity with ``platform: sensor``, signals and gateway entities."""
 
 from __future__ import annotations
 
@@ -32,9 +32,15 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data.coordinator
+    catalog = coordinator.catalog
     async_add_entities(
-        EcoPulseSensor(coordinator, device, entity)
-        for device, entity in coordinator.catalog.entities_for("sensor")
+        [
+            *(
+                EcoPulseSensor(coordinator, device, e)
+                for device, e in catalog.entities_for("sensor")
+            ),
+            *(EcoPulseSensor(coordinator, None, e) for e in catalog.gateway_entities_for("sensor")),
+        ]
     )
 
 
@@ -42,7 +48,7 @@ class EcoPulseSensor(EcoPulseEntity, SensorEntity):
     def __init__(
         self,
         coordinator: EcoPulseStreamCoordinator,
-        device: CatalogDevice,
+        device: CatalogDevice | None,
         entity: CatalogEntity,
     ) -> None:
         super().__init__(coordinator, device, entity)

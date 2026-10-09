@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .const import GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE
+
 
 @dataclass(frozen=True, slots=True)
 class GatewayInfo:
@@ -91,6 +93,9 @@ class Catalog:
     gateway_name: str
     firmware_version: str | None
     devices: tuple[CatalogDevice, ...]
+    # The gateway's own entities (schema 2, #623): on the gateway device, in no device of the
+    # availability event. Absent before schema 2, so a schema 1 gateway simply has none.
+    gateway_entities: tuple[CatalogEntity, ...]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Catalog:
@@ -101,6 +106,9 @@ class Catalog:
             gateway_name=str(gateway.get("name") or gateway["id"]),
             firmware_version=gateway.get("firmwareVersion"),
             devices=tuple(CatalogDevice.from_dict(d) for d in data.get("devices") or ()),
+            gateway_entities=tuple(
+                CatalogEntity.from_dict(e) for e in gateway.get("entities") or ()
+            ),
         )
 
     @classmethod
@@ -112,6 +120,7 @@ class Catalog:
             gateway_name=gateway_name,
             firmware_version=None,
             devices=(),
+            gateway_entities=(),
         )
 
     def entities_for(self, platform: str) -> list[tuple[CatalogDevice, CatalogEntity]]:
@@ -121,6 +130,13 @@ class Catalog:
             for entity in device.entities
             if entity.platform == platform
         ]
+
+    def gateway_entities_for(self, platform: str) -> list[CatalogEntity]:
+        return [entity for entity in self.gateway_entities if entity.platform == platform]
+
+    def gateway_entity(self, key: str) -> CatalogEntity | None:
+        unique_id = GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE.format(gatewayId=self.gateway_id, key=key)
+        return next((e for e in self.gateway_entities if e.unique_id == unique_id), None)
 
     def device_of(self) -> dict[str, str]:
         """Map each entity's unique id to its device id."""

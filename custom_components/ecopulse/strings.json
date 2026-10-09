@@ -52,5 +52,32 @@
       "unsupported_api_version": "This gateway does not offer a Home Assistant API version this integration supports. Update the integration.",
       "wrong_gateway": "This token belongs to a different gateway."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Surplus available",
+        "description": "When the binary sensor \"Surplus available\" turns on and off, based on the gateway's solar excess power. It turns on once the excess has been at least the threshold for the whole on-delay, and off once it has been below the threshold minus the hysteresis for the whole off-delay. A missing value counts as no surplus. Changes apply immediately.",
+        "data": {
+          "surplus_threshold_w": "Threshold",
+          "surplus_hysteresis_w": "Hysteresis",
+          "surplus_on_delay_s": "On-delay",
+          "surplus_off_delay_s": "Off-delay"
+        },
+        "data_description": {
+          "surplus_threshold_w": "Solar excess power from which surplus counts as available.",
+          "surplus_hysteresis_w": "Surplus only counts as gone below the threshold minus this value, so a value around the threshold does not toggle the sensor.",
+          "surplus_on_delay_s": "How long the excess must stay at or above the threshold before the sensor turns on.",
+          "surplus_off_delay_s": "How long the excess must stay below the threshold minus the hysteresis (or be unknown) before the sensor turns off."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "surplus_available": {
+        "name": "Surplus available"
+      }
+    }
   }
 }

@@ -20,7 +20,7 @@ from custom_components.ecopulse import api, const
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "8f475d966df64cb465f044606471136ad7c79355d80483a7debfe1c1f8b83766"
+CONTRACT_SHA256 = "c983bf9e3f8fbc273275b20f810a1c6f5eaceb0ce4454d52ae3016a58ef769cb"
 MANIFEST_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse" / "manifest.json"
 
 
@@ -29,9 +29,22 @@ def test_fixture_is_the_pinned_contract() -> None:
 
 
 def test_schema_and_api_version_are_the_ones_this_plugin_speaks(contract: dict[str, Any]) -> None:
-    assert contract["schemaVersion"] == 1
+    assert contract["schemaVersion"] == 2
     assert contract["apiVersion"] == const.API_VERSION
     assert contract["basePath"] == const.API_BASE_PATH
+
+
+def test_gateway_entities_are_keyed_by_the_contract_template(contract: dict[str, Any]) -> None:
+    # Schema 2 (#623): the gateway's own entities, unique id "{gatewayId}:{key}".
+    section = contract["gatewayEntities"]
+    gateway = contract["examples"]["catalog"]["gateway"]
+    assert section["uniqueIdTemplate"] == const.GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE
+    assert [e["key"] for e in section["entities"]] == [const.SOLAR_EXCESS_POWER_KEY]
+    assert [e["uniqueId"] for e in gateway["entities"]] == [
+        const.GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE.format(
+            gatewayId=gateway["id"], key=const.SOLAR_EXCESS_POWER_KEY
+        )
+    ]
 
 
 def test_auth_constants_match(contract: dict[str, Any]) -> None:

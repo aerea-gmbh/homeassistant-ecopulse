@@ -30,4 +30,8 @@ async def test_diagnostics_redact_the_token_and_the_gateway_name(
     assert diagnostics["catalog"]["revision"] == "9c1e4b7a2f05d863"
     assert diagnostics["catalog"]["entity_count"] == 6
     assert diagnostics["stream"]["connected"] is True
-    assert diagnostics["stream"]["values_known"] == 6
+    assert diagnostics["catalog"]["gateway_entities"] == [
+        {"unique_id": "gw-7f3a9c:solar_excess_power", "platform": "sensor", "unit": "W"}
+    ]
+    assert diagnostics["stream"]["values_known"] == 7
+    assert diagnostics["options"] == {}
