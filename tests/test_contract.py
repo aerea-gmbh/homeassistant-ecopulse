@@ -22,7 +22,7 @@ from custom_components.ecopulse.models import Catalog, GatewayInfo
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "d1da05dacbf191a821a96203babadda6db0681e7729c4e8239e1886eb0570556"
+CONTRACT_SHA256 = "a0b6aaeee39f0e02fcf52907f85bdab877d75ac07224b396297f4b26f683459b"
 COMPONENT_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse"
 MANIFEST_PATH = COMPONENT_PATH / "manifest.json"
 STRINGS_PATH = COMPONENT_PATH / "strings.json"
@@ -322,6 +322,13 @@ def test_loads_constants_match(contract: dict[str, Any]) -> None:
     assert loads["maxErrorLength"] == const.ACK_MAX_ERROR_LENGTH
     assert loads["ackBodyMaxBytes"] == const.ACK_BODY_MAX_BYTES
     assert loads["ackResponseStatus"] == 204
+    assert loads["ackTimeoutSeconds"] == const.ACK_TIMEOUT_SECONDS
+    # Review r1 MED-1: commands reach only a stream that asks for them; this client answers them.
+    assert loads["commandOptIn"] == {
+        "parameter": const.COMMAND_OPT_IN_PARAMETER,
+        "value": const.COMMAND_OPT_IN_VALUE,
+    }
+    assert loads["delivery"] == "all-command-streams-first-success-wins"
     assert {"method": "POST", "path": const.COMMAND_ACK_PATH, "scope": "loads"} in contract[
         "endpoints"
     ]

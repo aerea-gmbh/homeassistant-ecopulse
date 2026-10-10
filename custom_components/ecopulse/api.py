@@ -28,6 +28,8 @@ from yarl import URL
 from .const import (
     API_BASE_PATH,
     COMMAND_ACK_PATH,
+    COMMAND_OPT_IN_PARAMETER,
+    COMMAND_OPT_IN_VALUE,
     CONF_TLS_FINGERPRINT,
     CONF_TLS_PORT,
     FINGERPRINT_PATTERN,
@@ -199,11 +201,15 @@ class EcoPulseApiClient:
         except (aiohttp.ClientError, TimeoutError) as err:
             raise EcoPulseConnectionError(f"POST command ack failed: {type(err).__name__}") from err
 
-    async def async_stream(self) -> AsyncIterator[SseEvent]:
+    async def async_stream(self, *, commands: bool = False) -> AsyncIterator[SseEvent]:
         """Yield events until the stream ends; raise on silence, errors or auth failure.
 
         ``sock_read`` makes aiohttp fail a read that saw no byte for the dead timeout, which is
         exactly the contract's "no byte for 45 s = dead" (pings count as bytes).
+
+        ``commands`` asks the gateway for ``command`` events (review r1 MED-1): it sends them only
+        to a stream that asks, so it never waits for a client that cannot answer. Never asked for
+        in the clear, where no command is acted on.
         """
         timeout = aiohttp.ClientTimeout(
             total=None, sock_connect=REQUEST_TIMEOUT_SECONDS, sock_read=STREAM_DEAD_AFTER_SECONDS
@@ -212,6 +218,11 @@ class EcoPulseApiClient:
         try:
             async with self._session.get(
                 self._base / "stream",
+                params=(
+                    {COMMAND_OPT_IN_PARAMETER: COMMAND_OPT_IN_VALUE}
+                    if commands and self.pinned
+                    else None
+                ),
                 headers={**self._headers, "Accept": "text/event-stream"},
                 timeout=timeout,
                 allow_redirects=False,

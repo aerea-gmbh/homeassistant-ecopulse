@@ -7,7 +7,8 @@ Client behaviour per ADR-230 §4/§6 and the contract's ``client`` block:
   that is briefly inconsistent cannot drive a reload loop);
 - unknown value ids are ignored;
 - a ``command`` event (schema 6, #625) goes to the registered command handler, and only when this
-  stream is the pinned TLS connection: one in the clear never switches anything;
+  stream is the pinned TLS connection: one in the clear never switches anything; the stream asks
+  for commands only while a handler is registered (review r1 MED-1);
 - 401/403 -> reauth, no further reconnects; 404 -> retry after 300 s; 429 -> Retry-After;
   a drop -> backoff from 1 s doubling to 60 s, reset by a snapshot.
 """
@@ -167,7 +168,8 @@ class EcoPulseStreamCoordinator:
         while True:
             error: Exception | None = None
             try:
-                async with aclosing(self._client.async_stream()) as events:
+                answers_commands = self._command_handler is not None
+                async with aclosing(self._client.async_stream(commands=answers_commands)) as events:
                     async for event in events:
                         if await self._async_handle(event):
                             backoff = float(BACKOFF_INITIAL_SECONDS)

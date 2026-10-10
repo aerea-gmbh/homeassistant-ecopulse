@@ -63,6 +63,10 @@ LOAD_ACTION_OFF: Final = "off"
 LOAD_ENTITY_DOMAINS: Final = ("switch", "input_boolean", "light", "fan")
 ACK_MAX_ERROR_LENGTH: Final = 256
 ACK_BODY_MAX_BYTES: Final = 1024
+ACK_TIMEOUT_SECONDS: Final = 10
+# Review r1 MED-1: the gateway sends commands only to a stream that asks for them this way.
+COMMAND_OPT_IN_PARAMETER: Final = "commands"
+COMMAND_OPT_IN_VALUE: Final = "1"
 ERROR_UNKNOWN_COMMAND: Final = "unknown_command"
 ISSUE_LOADS_REFUSED: Final = "loads_refused"
 ISSUE_LOADS_NEED_TLS: Final = "loads_need_tls"

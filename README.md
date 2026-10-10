@@ -175,8 +175,10 @@ PV heater assistant switches them like relays: with its priority, minimum on and
    fan or input boolean EcoPulse switches for each load. EcoPulse's own entities are not offered.
 
 When EcoPulse switches a load, the integration calls the entity's `turn_on` or `turn_off` and reports the result (and
-the entity's state) back to the gateway. A load nobody mapped, or a service that fails, is reported as failed, and
-EcoPulse's assistant shows why. Without a power sensor, EcoPulse counts the load's nominal power as its consumption
+the entity's state) back to the gateway. A load nobody mapped, a service that fails or takes longer than 8 s, and an
+entity Home Assistant does not have or reports unavailable are reported as failed, and EcoPulse's assistant shows why.
+Commands for one entity run one after the other; when several wait, only the latest runs, so a slow `turn_on` never
+ends after a later `turn_off`. Without a power sensor, EcoPulse counts the load's nominal power as its consumption
 while it is on; map a power sensor as a value from Home Assistant to the load's device and bind it to the heater to
 measure it instead.
 

@@ -1,14 +1,17 @@
 """EcoPulse switches Home Assistant loads (schema 6, #625, ADR-232 S6).
 
 What must hold: a ``command`` on the pinned TLS stream switches the mapped entity with its domain's
-``turn_on``/``turn_off`` and is acknowledged with the entity's state; an unmapped load or a failing
-service is acknowledged ``ok: false`` with the reason, at once; a plain-HTTP entry never acts on a
-command; a 403 on the ack stops switching (repair issue, no reauth); the handler goes with the
-entry; the options flow maps entities to the catalog's loads and never offers EcoPulse's own.
+``turn_on``/``turn_off`` and is acknowledged with the entity's state; an unmapped load, a failing
+service, or an entity that is missing or unavailable is acknowledged ``ok: false`` with the reason,
+at once; commands for one entity run one after the other and only the latest waiting one runs; a
+plain-HTTP entry never acts on a command and never asks for commands; a 403 on the ack stops
+switching (repair issue, no reauth); the handler goes with the entry; the options flow maps entities
+to the catalog's loads and never offers EcoPulse's own.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -22,6 +25,7 @@ from homeassistant.setup import async_setup_component
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.ecopulse import loads as loads_module
 from custom_components.ecopulse.const import (
     ACK_MAX_ERROR_LENGTH,
     CONF_LOADS,
@@ -30,7 +34,7 @@ from custom_components.ecopulse.const import (
     DOMAIN,
 )
 from custom_components.ecopulse.coordinator import EcoPulseStreamCoordinator
-from custom_components.ecopulse.loads import NOT_MAPPED, error_text
+from custom_components.ecopulse.loads import NOT_MAPPED, SUPERSEDED, error_text
 from custom_components.ecopulse.models import Catalog
 from custom_components.ecopulse.sse import SseEvent
 
@@ -82,6 +86,10 @@ def _command(load: str, action: str, command_id: str = COMMAND_ID) -> dict[str, 
         "action": action,
         "issuedAt": "2026-10-10T12:00:00Z",
     }
+
+
+def _stream_queries(gateway: FakeGateway) -> list[dict[str, str]]:
+    return [r.query for r in gateway.requests if r.path.endswith("/stream")]
 
 
 def _issue(hass: HomeAssistant, issue: str, entry: MockConfigEntry) -> ir.IssueEntry | None:
@@ -143,6 +151,105 @@ async def test_a_failing_service_is_acknowledged_as_failed_with_its_reason(
     assert len(ack["error"]) == ACK_MAX_ERROR_LENGTH
 
 
+# Review r1 MED-2: Home Assistant skips an entity it does not know (or that is unavailable) and
+# still completes the call; that is no switch, and the gateway must not count the load's power.
+@pytest.mark.parametrize(
+    ("entity_id", "state"),
+    [("input_boolean.gone", None), ("switch.offline", "unavailable")],
+)
+@pytest.mark.usefixtures("fast_backoff")
+async def test_a_missing_or_unavailable_entity_is_acknowledged_as_failed(
+    hass: HomeAssistant, tls_gateway: FakeGateway, entity_id: str, state: str | None
+) -> None:
+    hass.services.async_register("switch", "turn_on", lambda _call: None)
+    if state is not None:
+        hass.states.async_set(entity_id, state)
+    await _load(hass, tls_gateway, _entry(tls_gateway, {CONF_LOADS: {POOL_PUMP: entity_id}}))
+
+    tls_gateway.push("command", _command(POOL_PUMP, "on"))
+    await tls_gateway.wait_for_acks(1)
+
+    ack = tls_gateway.acks[0][1]
+    assert ack["ok"] is False
+    assert ack["state"] is None
+    assert entity_id in ack["error"]
+
+
+class _SlowSwitch:
+    """``switch.slow``: ``turn_on`` waits for :attr:`release`; every call is logged in order."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.release = asyncio.Event()
+        self.log: list[str] = []
+        self._hass = hass
+        hass.states.async_set("switch.slow", "off")
+        hass.services.async_register("switch", "turn_on", self._turn_on)
+        hass.services.async_register("switch", "turn_off", self._turn_off)
+
+    async def _turn_on(self, _call: ServiceCall) -> None:
+        self.log.append("on started")
+        await self.release.wait()
+        self._hass.states.async_set("switch.slow", "on")
+        self.log.append("on done")
+
+    async def _turn_off(self, _call: ServiceCall) -> None:
+        self._hass.states.async_set("switch.slow", "off")
+        self.log.append("off done")
+
+
+# Review r1 LOW-1: a slow ON must never finish after a later OFF (the load would stay on while the
+# gateway counts it off). Commands for one entity run one after the other, and of those waiting only
+# the latest runs: the gateway's latest request is the one it waits for.
+@pytest.mark.usefixtures("fast_backoff")
+async def test_commands_for_one_entity_run_in_turn_and_only_the_latest_waiting_one_runs(
+    hass: HomeAssistant, tls_gateway: FakeGateway
+) -> None:
+    switch = _SlowSwitch(hass)
+    await _load(hass, tls_gateway, _entry(tls_gateway, {CONF_LOADS: {POOL_PUMP: "switch.slow"}}))
+
+    tls_gateway.push("command", _command(POOL_PUMP, "on", "1" * 32))
+    await wait_until(hass, lambda: switch.log == ["on started"])
+    tls_gateway.push("command", _command(POOL_PUMP, "on", "2" * 32))
+    tls_gateway.push("command", _command(POOL_PUMP, "off", "3" * 32))
+    await tls_gateway.wait_for_acks(1)
+    switch.release.set()
+    await tls_gateway.wait_for_acks(3)
+
+    assert switch.log == ["on started", "on done", "off done"]
+    assert dict(tls_gateway.acks) == {
+        "2" * 32: {"ok": False, "state": None, "error": SUPERSEDED},
+        "1" * 32: {"ok": True, "state": "on"},
+        "3" * 32: {"ok": True, "state": "off"},
+    }
+    assert hass.states.get("switch.slow").state == "off"
+
+
+# A call that does not finish is answered before the gateway gives up, and the entity stays taken
+# until it ends: a later OFF still runs after it, not beside it.
+@pytest.mark.usefixtures("fast_backoff")
+async def test_a_call_that_does_not_finish_is_answered_in_time_and_still_holds_the_entity(
+    hass: HomeAssistant, tls_gateway: FakeGateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(loads_module, "SERVICE_TIMEOUT_SECONDS", 0.05)
+    switch = _SlowSwitch(hass)
+    await _load(hass, tls_gateway, _entry(tls_gateway, {CONF_LOADS: {POOL_PUMP: "switch.slow"}}))
+
+    tls_gateway.push("command", _command(POOL_PUMP, "on", "1" * 32))
+    await tls_gateway.wait_for_acks(1)
+    tls_gateway.push("command", _command(POOL_PUMP, "off", "3" * 32))
+    await asyncio.sleep(0.2)
+
+    assert tls_gateway.acks[0][1]["ok"] is False
+    assert "switch.slow" in tls_gateway.acks[0][1]["error"]
+    assert switch.log == ["on started"], "the OFF waits for the ON that is still running"
+
+    switch.release.set()
+    await tls_gateway.wait_for_acks(2)
+
+    assert switch.log == ["on started", "on done", "off done"]
+    assert tls_gateway.acks[1] == ("3" * 32, {"ok": True, "state": "off"})
+
+
 @pytest.mark.usefixtures("fast_backoff")
 async def test_a_command_without_a_valid_id_is_ignored_and_an_unknown_action_is_refused(
     hass: HomeAssistant, tls_gateway: FakeGateway
@@ -178,6 +285,22 @@ async def test_a_plain_http_entry_never_acts_on_a_command_and_raises_a_repair_is
     assert hass.states.get("input_boolean.pool_pump").state == "off"
     assert gateway.acks == []
     assert _issue(hass, "loads_need_tls", entry) is not None
+    assert _stream_queries(gateway) == [{}], "a stream in the clear never asks for commands"
+
+
+# Review r1 MED-1: the gateway sends commands only to a stream that asks for them, so it never waits
+# for an answer from a client that cannot give one. This client asks only with its handler in place
+# (the plain-HTTP half: the test above).
+@pytest.mark.parametrize(("has_loads", "query"), [(True, {"commands": "1"}), (False, {})])
+@pytest.mark.usefixtures("fast_backoff")
+async def test_the_stream_asks_for_commands_only_when_this_entry_answers_them(
+    hass: HomeAssistant, tls_gateway: FakeGateway, has_loads: bool, query: dict[str, str]
+) -> None:
+    if not has_loads:
+        tls_gateway.catalog.pop("loads")
+    await _load(hass, tls_gateway, _entry(tls_gateway))
+
+    assert _stream_queries(tls_gateway) == [query]
 
 
 # The coordinator's own rule, behind the switcher's (which registers no handler without a pin): a
@@ -330,3 +453,9 @@ def test_an_error_text_fits_the_ack_body_whatever_its_characters() -> None:
     assert len(body.encode()) <= 1024
     assert text.startswith("\U0001f525")
     assert error_text(HomeAssistantError("")) == "HomeAssistantError"
+
+
+# Review r1 INFO: a device's error may carry line breaks or control bytes; the gateway's report and
+# log get one plain line.
+def test_an_error_text_carries_no_control_characters() -> None:
+    assert error_text(HomeAssistantError("relay\r\nfailed\x00\x1b[31m")) == "relay  failed  [31m"

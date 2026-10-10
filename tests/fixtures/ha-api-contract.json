@@ -954,8 +954,13 @@
     "ackBodyMaxBytes": 1024,
     "ackResponseStatus": 204,
     "ackTimeoutSeconds": 10,
-    "delivery": "all-command-streams-first-ack-wins",
-    "commandStreams": "tls-with-loads-scope",
+    "delivery": "all-command-streams-first-success-wins",
+    "commandStreams": "tls-with-loads-scope-opted-in",
+    "commandOptIn": {
+      "parameter": "commands",
+      "value": "1"
+    },
+    "applyWhileWaiting": "pending-until-answered",
     "onNoCommandStream": "apply-fails",
     "onOutage": "keep-state-reapply-on-reconnect",
     "catalogProperties": [

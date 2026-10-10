@@ -6,7 +6,14 @@ Home Assistant entity to each. The gateway sends a ``command`` event on the stre
 calls the mapped entity's ``turn_on``/``turn_off`` (blocking, so the state is the result) and
 acknowledges with ``POST /commands/{commandId}/ack``: ``ok``, the entity's state after the call
 and, when it failed, why. The gateway's apply fails without an ack within its timeout, so a load
-nobody mapped is answered at once with ``ok: false``.
+nobody mapped is answered at once with ``ok: false``, and so is an entity Home Assistant does not
+have or reports unavailable (it completes such a call without switching anything).
+
+- One command per entity at a time, and of those waiting only the latest runs (the others are
+  answered as replaced): a slow ON never finishes after a later OFF. A call still running when the
+  ack is due is answered as failed and keeps the entity until it ends.
+- The stream asks for commands only while this switcher handles them (``?commands=1``): the
+  gateway sends none to a client that cannot answer.
 
 - Only over the pinned TLS connection: the coordinator drops a command from any other stream, and
   without a pin no handler is registered at all (a repair issue says why).
@@ -18,7 +25,9 @@ nobody mapped is answered at once with ``ok: false``.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
+from contextlib import suppress
 import logging
 import re
 from typing import Any
@@ -39,6 +48,7 @@ from .api import (
 from .const import (
     ACK_BODY_MAX_BYTES,
     ACK_MAX_ERROR_LENGTH,
+    ACK_TIMEOUT_SECONDS,
     COMMAND_ID_PATTERN,
     CONF_LOADS,
     DOMAIN,
@@ -55,11 +65,17 @@ from .models import CatalogLoad
 _LOGGER = logging.getLogger(__name__)
 
 NOT_MAPPED = "No Home Assistant entity is mapped to this load."
+SUPERSEDED = "A later command for this load replaced this one before it ran."
+
+# A call still running then is answered as failed: the ack reaches the gateway within its timeout.
+SERVICE_TIMEOUT_SECONDS: float = ACK_TIMEOUT_SECONDS - 2
 
 # What the error may take of the ack body; the rest is the envelope ({"ok":false,"state":"off"}).
 _ERROR_MAX_BYTES = ACK_BODY_MAX_BYTES - 128
 
 _SERVICE_OF = {LOAD_ACTION_ON: "turn_on", LOAD_ACTION_OFF: "turn_off"}
+
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def mapping_of(options: Mapping[str, Any], loads: tuple[CatalogLoad, ...]) -> dict[str, str]:
@@ -79,9 +95,11 @@ def reported_state(hass: HomeAssistant, entity_id: str) -> str | None:
     return state.state if state is not None and state.state in (STATE_ON, STATE_OFF) else None
 
 
-def error_text(err: Exception) -> str:
-    """Why a switch failed, for the gateway's report: never empty, at most the contract length."""
-    text = (str(err) or type(err).__name__)[:ACK_MAX_ERROR_LENGTH]
+def error_text(err: Exception | str) -> str:
+    """Why a switch failed, for the gateway's report: one plain line, never empty, at most the
+    contract length (a device's message may carry line breaks or terminal escapes)."""
+    raw = err if isinstance(err, str) else (str(err) or type(err).__name__)
+    text = _CONTROL_CHARACTERS.sub(" ", raw)[:ACK_MAX_ERROR_LENGTH]
     # 256 characters may be more bytes than the gateway reads (an emoji is four): the body must fit.
     while len(text.encode()) > _ERROR_MAX_BYTES:
         text = text[:-1]
@@ -107,6 +125,9 @@ class EcoPulseLoadSwitcher:
         self._configured = mapping_of(entry.options, self._loads)
         self._mapping = dict(self._configured)
         self._disabled = False
+        # Review r1 LOW-1: one command per entity at a time; of those waiting, only the latest.
+        self._entity_locks: dict[str, asyncio.Lock] = {}
+        self._waiting: dict[str, str] = {}
 
     @property
     def disabled(self) -> bool:
@@ -175,19 +196,56 @@ class EcoPulseLoadSwitcher:
         if entity_id is None:
             await self._async_ack(command_id, False, None, NOT_MAPPED)
             return
-        domain = entity_id.split(".", 1)[0]
-        try:
-            await self.hass.services.async_call(
-                domain, service, {"entity_id": entity_id}, blocking=True
+        if (replaced := self._waiting.get(entity_id)) is not None:
+            await self._async_ack(replaced, False, None, SUPERSEDED)
+        self._waiting[entity_id] = command_id
+        async with self._entity_locks.setdefault(entity_id, asyncio.Lock()):
+            if self._waiting.get(entity_id) != command_id:
+                return  # a later command replaced it while it waited, and answered it
+            del self._waiting[entity_id]
+            await self._async_switch(command_id, entity_id, service)
+
+    async def _async_switch(self, command_id: str, entity_id: str, service: str) -> None:
+        """Call the service, acknowledge the outcome, and hold the entity until the call ended.
+
+        A call still running after :data:`SERVICE_TIMEOUT_SECONDS` is answered as failed, but the
+        entity stays taken until it ends: a later OFF runs after a slow ON, never beside it.
+        """
+        call = self.hass.async_create_background_task(
+            self.hass.services.async_call(
+                entity_id.split(".", 1)[0], service, {"entity_id": entity_id}, blocking=True
+            ),
+            f"{DOMAIN} {service} {entity_id}",
+        )
+        done, _ = await asyncio.wait({call}, timeout=SERVICE_TIMEOUT_SECONDS)
+        if not done:
+            await self._async_ack(
+                command_id,
+                False,
+                None,
+                f"{entity_id} did not finish {service} within {SERVICE_TIMEOUT_SECONDS:g} s.",
             )
+            with suppress(HomeAssistantError, vol.Invalid):
+                await call
+            return
+        try:
+            call.result()
         except (HomeAssistantError, vol.Invalid) as err:
-            _LOGGER.debug("Switching %s %s failed: %s", entity_id, action, err)
+            _LOGGER.debug("Switching %s %s failed: %s", entity_id, service, err)
             await self._async_ack(
                 command_id, False, reported_state(self.hass, entity_id), error_text(err)
             )
             return
-        _LOGGER.debug("Switched %s %s for EcoPulse", entity_id, action)
-        await self._async_ack(command_id, True, reported_state(self.hass, entity_id))
+        state = reported_state(self.hass, entity_id)
+        if state is None:
+            # Review r1 MED-2: Home Assistant completes a call that skipped a missing or
+            # unavailable entity; that switched nothing.
+            await self._async_ack(
+                command_id, False, None, error_text(f"{entity_id} is missing or unavailable.")
+            )
+            return
+        _LOGGER.debug("Switched %s %s for EcoPulse", entity_id, service)
+        await self._async_ack(command_id, True, state)
 
     async def _async_ack(
         self, command_id: str, ok: bool, state: str | None, error: str | None = None
