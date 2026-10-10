@@ -96,6 +96,65 @@
             "name": "Assistenten"
           }
         }
+      },
+      "alarm": {
+        "name": "Alarmmeldung",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "active_count": {
+            "name": "Aktive Alarme"
+          },
+          "critical_count": {
+            "name": "Kritische Alarme"
+          },
+          "alarms": {
+            "name": "Alarme"
+          }
+        }
+      },
+      "alarm_rule": {
+        "name": "Alarmregel",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "rule_type": {
+            "name": "Regeltyp"
+          },
+          "severity": {
+            "name": "Schweregrad",
+            "state": {
+              "warning": "Warnung",
+              "critical": "Kritisch"
+            }
+          },
+          "since": {
+            "name": "Seit"
+          },
+          "message": {
+            "name": "Meldung"
+          },
+          "acknowledged": {
+            "name": "Bestätigt"
+          },
+          "in_maintenance": {
+            "name": "In Wartung"
+          }
+        }
       }
     },
     "sensor": {

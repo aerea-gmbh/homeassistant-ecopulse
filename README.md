@@ -124,6 +124,23 @@ available and `cloud_synced` turns false. Once the delivered forecast runs out (
 "tomorrow" has no data left) the value becomes unknown rather than showing an old day. The lists and `synced_at` are kept out of the
 recorder. The names are translated (English, German).
 
+## Alarms
+
+Your EcoPulse alarm rules show up on the gateway device as problem sensors, so an automation can react to an alarm
+without the EcoPulse app:
+
+- **Alarm**: on while any rule of the plant fires, with `active_count`, `critical_count` and `alarms` (up to 10
+  firing rules with `rule`, `severity`, `since`, critical ones first, then the oldest).
+- **One sensor per alarm rule**, named after the rule: on while the rule fires, with `rule_type`, `severity`
+  (`warning` or `critical`), `since`, `message`, `acknowledged` and `in_maintenance`. An acknowledged alarm, or one
+  during a maintenance window, stays on: the condition is still there, the attributes say it is being handled.
+
+Every rule of the plant is shown, also on a second gateway of the same plant; a gateway's own "gateway offline" rule
+is left out on that gateway, since it could never show it firing. Adding, deleting or renaming a rule in EcoPulse
+adds, removes or renames its sensor within seconds (the integration reloads). While the cloud is unreachable the
+alarms keep their last state and `cloud_synced` turns false; a rule never disappears just because the cloud is gone.
+The alarm list and `synced_at` are kept out of the recorder.
+
 ## Requirements
 
 - Home Assistant **2025.10** or newer.

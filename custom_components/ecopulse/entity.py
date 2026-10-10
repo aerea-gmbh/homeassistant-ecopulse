@@ -5,6 +5,8 @@ the gateway device and is available exactly while the stream is connected.
 
 Schema 3 (#626): a value's ``attributes`` become the entity's state attributes, replaced with
 every value; the contract's unrecorded keys (arrays such as ``drivers``) stay out of the recorder.
+A rule's alarm sensor (``alarm_{ruleId}``, S7.4) is named after the rule, the catalog's name, and
+takes only its attribute names from the translations.
 """
 
 from __future__ import annotations
@@ -17,6 +19,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import (
+    ALARM_RULE_KEY_PREFIX,
+    ALARM_RULE_TRANSLATION_KEY,
     DOMAIN,
     ENTITY_CATEGORY_DIAGNOSTIC,
     GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE,
@@ -41,12 +45,14 @@ class EcoPulseEntity(Entity):
         self.coordinator = coordinator
         self._device_id = device.id if device else None
         self._attr_unique_id = entity.unique_id
-        if device is None and (key := _gateway_entity_key(coordinator, entity)) in (
-            TRANSLATED_GATEWAY_ENTITY_KEYS
-        ):
+        key = _gateway_entity_key(coordinator, entity) if device is None else None
+        if key in TRANSLATED_GATEWAY_ENTITY_KEYS:
             self._attr_translation_key = key
         else:
             self._attr_name = entity.name
+            if key is not None and key.startswith(ALARM_RULE_KEY_PREFIX):
+                # The explicit name wins over the translation's; the key still names the attributes.
+                self._attr_translation_key = ALARM_RULE_TRANSLATION_KEY
         self._attr_entity_category = (
             EntityCategory.DIAGNOSTIC
             if entity.entity_category == ENTITY_CATEGORY_DIAGNOSTIC

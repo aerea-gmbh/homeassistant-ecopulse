@@ -96,6 +96,65 @@
             "name": "Assistants"
           }
         }
+      },
+      "alarm": {
+        "name": "Alarm",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "active_count": {
+            "name": "Active alarms"
+          },
+          "critical_count": {
+            "name": "Critical alarms"
+          },
+          "alarms": {
+            "name": "Alarms"
+          }
+        }
+      },
+      "alarm_rule": {
+        "name": "Alarm rule",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "rule_type": {
+            "name": "Rule type"
+          },
+          "severity": {
+            "name": "Severity",
+            "state": {
+              "warning": "Warning",
+              "critical": "Critical"
+            }
+          },
+          "since": {
+            "name": "Since"
+          },
+          "message": {
+            "name": "Message"
+          },
+          "acknowledged": {
+            "name": "Acknowledged"
+          },
+          "in_maintenance": {
+            "name": "In maintenance"
+          }
+        }
       }
     },
     "sensor": {

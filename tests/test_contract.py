@@ -84,7 +84,7 @@ def test_the_forecast_sensors_are_the_contract_s_forecast_entities(
     forecast = {e["key"]: e for e in section["entities"] if e["cloudFact"] == "forecast"}
     assert frozenset(forecast) == const.FORECAST_ENTITY_KEYS
     assert const.TRANSLATED_GATEWAY_ENTITY_KEYS == (
-        const.PROBLEM_SENSOR_KEYS | const.FORECAST_ENTITY_KEYS
+        const.PROBLEM_SENSOR_KEYS | const.FORECAST_ENTITY_KEYS | const.ALARM_ENTITY_KEYS
     )
     cloud_attributes = [a["key"] for a in section["cloudAttributes"]]
     for language in ("en", "de"):
@@ -96,6 +96,45 @@ def test_the_forecast_sensors_are_the_contract_s_forecast_entities(
             expected = cloud_attributes + [a["key"] for a in definition["attributes"]]
             assert sorted(entry["state_attributes"]) == sorted(expected), (language, key)
             assert all(v["name"] for v in entry["state_attributes"].values()), (language, key)
+
+
+def test_the_alarm_sensors_are_the_contract_s_alarm_entity_and_family(
+    contract: dict[str, Any],
+) -> None:
+    # Schema 3 (#626 S7.4, ADR-231 §9): "alarm" is named by the translations; the family
+    # "alarm_{ruleId}" is named after the rule and takes its attribute names from "alarm_rule".
+    section = contract["gatewayEntities"]
+    alarm = {e["key"]: e for e in section["entities"] if e["cloudFact"] == "alerts"}
+    assert frozenset(alarm) == const.ALARM_ENTITY_KEYS == {const.ALARM_KEY}
+    (family,) = section["families"]
+    assert family["keyTemplate"] == const.ALARM_RULE_KEY_PREFIX + "{ruleId}"
+    assert family["nameFrom"] == "rule"
+    cloud_attributes = [a["key"] for a in section["cloudAttributes"]]
+    expected = {
+        const.ALARM_KEY: alarm[const.ALARM_KEY],
+        const.ALARM_RULE_TRANSLATION_KEY: family,
+    }
+    for language in ("en", "de"):
+        names = json.loads((TRANSLATIONS_PATH / f"{language}.json").read_text(encoding="utf-8"))
+        for key, definition in expected.items():
+            assert definition["platform"] == "binary_sensor"
+            entry = names["entity"]["binary_sensor"][key]
+            assert entry["name"], (language, key)
+            keys = cloud_attributes + [a["key"] for a in definition["attributes"]]
+            assert sorted(entry["state_attributes"]) == sorted(keys), (language, key)
+            assert all(v["name"] for v in entry["state_attributes"].values()), (language, key)
+        # The cloud-facts contract's severity table, which the stream example uses.
+        states = names["entity"]["binary_sensor"][key]["state_attributes"]["severity"]["state"]
+        assert set(states) == {"warning", "critical"} >= _example_severities(contract), language
+
+
+def _example_severities(contract: dict[str, Any]) -> set[str]:
+    family = f"{contract['examples']['catalog']['gateway']['id']}:{const.ALARM_RULE_KEY_PREFIX}"
+    return {
+        value["attributes"]["severity"]
+        for value in contract["examples"]["stream"]["snapshot"]["values"]
+        if value["id"].startswith(family)
+    }
 
 
 def test_value_attributes_and_their_unrecorded_keys_match(contract: dict[str, Any]) -> None:
