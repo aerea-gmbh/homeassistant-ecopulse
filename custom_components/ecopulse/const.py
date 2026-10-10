@@ -72,6 +72,16 @@ ISSUE_LOADS_REFUSED: Final = "loads_refused"
 ISSUE_LOADS_NEED_TLS: Final = "loads_need_tls"
 ISSUE_LOAD_LOOP: Final = "load_loop"
 
+# Contract "control" (schema 7, #627, ADR-232 S8): Home Assistant changes an assistant's mode,
+# enabled state and battery-support thresholds. Entities only with the "control" scope over the
+# pinned TLS connection; their state is the stream value named by the control's stateValueId.
+SCOPE_CONTROL: Final = "control"
+CONTROL_PATH: Final = "control"
+CONTROL_PLATFORMS: Final = ("select", "switch", "number")
+CONTROL_REFUSAL_CODES: Final = frozenset({"out_of_bounds", "unknown_target", "not_allowed"})
+ERROR_UNAVAILABLE: Final = "unavailable"
+ISSUE_CONTROL_REFUSED: Final = "control_refused"
+
 ZEROCONF_SERVICE_TYPE: Final = "_ecopulse._tcp.local."
 ZEROCONF_TXT_ID: Final = "id"
 ZEROCONF_TXT_API: Final = "api"

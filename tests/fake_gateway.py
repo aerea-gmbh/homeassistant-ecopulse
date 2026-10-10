@@ -10,6 +10,9 @@ items whose key is a catalog slot accepted and the rest rejected ``unknown_input
 ``POST /commands/{commandId}/ack`` (schema 6, #625) records every ack and answers 204, or
 ``ack_status`` (with the contract's code) when a test forces one.
 
+``POST /control`` (schema 7, #627) records every body and answers 202 ``{applied, state}`` with the
+posted value as the state, or ``control_status`` with ``control_code`` when a test forces one.
+
 With ``tls=True`` it serves HTTPS with a self-signed ECDSA P-256 certificate of its own, like
 the gateway's TLS port (#610 S8-TLS); ``fingerprint`` is that certificate's SHA-256 in the
 contract format, and ``/info`` names it.
@@ -68,6 +71,10 @@ class FakeGateway:
     inputs_retry_after: int | None = None
     acks: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     ack_status: int | None = None
+    controls: list[dict[str, Any]] = field(default_factory=list)
+    control_status: int | None = None
+    control_code: str = "out_of_bounds"
+    control_retry_after: int | None = None
 
     def __post_init__(self) -> None:
         examples = self.contract["examples"]
@@ -213,11 +220,7 @@ class FakeGateway:
             raise web.HTTPFound(self.redirect_to)
         tail = request.match_info["tail"]
         if request.method == "POST":
-            if tail == "inputs":
-                return await self._inputs(request)
-            if tail.startswith("commands/") and tail.endswith("/ack"):
-                return await self._ack(request, tail.split("/")[1])
-            return _error(404, "not_found", "x")
+            return await self._post(request, tail)
         if tail == "info":
             return web.json_response(self.info)
         if tail == "catalog":
@@ -225,6 +228,15 @@ class FakeGateway:
         if tail == "stream":
             return await self._stream(request)
         return _error(404, "not_found", "Not found.")
+
+    async def _post(self, request: web.Request, tail: str) -> web.Response:
+        if tail == "inputs":
+            return await self._inputs(request)
+        if tail.startswith("commands/") and tail.endswith("/ack"):
+            return await self._ack(request, tail.split("/")[1])
+        if tail == "control":
+            return await self._control(request)
+        return _error(404, "not_found", "x")
 
     async def wait_for_posts(self, count: int, timeout: float = 5) -> None:
         async with asyncio.timeout(timeout):
@@ -245,6 +257,16 @@ class FakeGateway:
             code = {403: "insufficient_scope", 404: "unknown_command"}.get(self.ack_status, "x")
             return _error(self.ack_status, code, "x")
         return web.Response(status=204)
+
+    async def _control(self, request: web.Request) -> web.Response:
+        body = await request.json()
+        self.controls.append(body)
+        if self.control_status is not None:
+            headers = (
+                {"Retry-After": str(self.control_retry_after)} if self.control_retry_after else None
+            )
+            return _error(self.control_status, self.control_code, "x", headers)
+        return web.json_response({"applied": True, "state": body["value"]}, status=202)
 
     async def _inputs(self, request: web.Request) -> web.Response:
         body = await request.json()

@@ -486,6 +486,33 @@
     "load_loop": {
       "title": "{name}: EcoPulse-Entitäten als Verbraucher zugeordnet",
       "description": "Entitäten von EcoPulse selbst ({entities}) können keine Verbraucher sein, die EcoPulse schaltet; sie werden ignoriert. Wähle andere Entitäten unter Konfigurieren > Von EcoPulse geschaltete Verbraucher."
+    },
+    "control_refused": {
+      "title": "{name}: Home Assistant darf EcoPulse nicht mehr steuern",
+      "description": "Das Gateway hat eine Änderung aus Home Assistant abgelehnt ({code}): Die Home-Assistant-Steuerung der Anlage wurde in der EcoPulse-Web-App ausgeschaltet, oder die Verbindung ist nicht verschlüsselt. Die Steuer-Entitäten sind nicht verfügbar; das Lesen geht weiter. Schalte sie in den Einstellungen der Anlage wieder ein und lade diese Integration neu."
+    }
+  },
+  "exceptions": {
+    "control_refused": {
+      "message": "Das Gateway hat diese Änderung abgelehnt ({code}): Der Wert liegt außerhalb dessen, was die Steuerung erlaubt (bei einem Batterie-SoC nicht unter dem Mindest-SoC der Anlage und der Stopp nicht über dem Start), oder der Assistent bietet sie nicht mehr an."
+    },
+    "control_unavailable": {
+      "message": "Das Gateway kann gerade keine Änderungen übernehmen; nichts wurde geändert. Bitte später erneut versuchen."
+    },
+    "control_invalid": {
+      "message": "Das Gateway konnte diese Änderung nicht lesen; nichts wurde geändert."
+    },
+    "control_rate_limited": {
+      "message": "Zu viele Änderungen in kurzer Zeit; das Gateway nimmt eine pro Sekunde und 30 pro Minute an. Erneut versuchen in {seconds} s."
+    },
+    "control_disabled": {
+      "message": "Home Assistant darf die Assistenten von EcoPulse nicht mehr ändern: Die Home-Assistant-Steuerung der Anlage ist in der EcoPulse-Web-App ausgeschaltet."
+    },
+    "control_needs_tls": {
+      "message": "Änderungen gehen nur über die verschlüsselte Verbindung an EcoPulse; nichts wurde gesendet."
+    },
+    "control_failed": {
+      "message": "Die Änderung hat das Gateway nicht erreicht ({error}); nichts wurde bestätigt."
     }
   }
 }

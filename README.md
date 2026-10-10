@@ -21,8 +21,8 @@ data path, no MQTT broker, no polling.
 - A device whose source stops answering turns *unavailable*; everything turns unavailable while the gateway is
   unreachable, and the integration reconnects by itself.
 
-Beyond reading, Home Assistant can feed values into EcoPulse and EcoPulse can switch Home Assistant loads (both over
-the encrypted connection, see below). Controlling EcoPulse from Home Assistant is planned.
+Beyond reading, Home Assistant can feed values into EcoPulse, EcoPulse can switch Home Assistant loads, and Home
+Assistant can change EcoPulse's assistants (all over the encrypted connection, see below).
 
 ## Solar excess and "Surplus available"
 
@@ -188,6 +188,27 @@ repair issue. There is no timeout on the Home Assistant side: when the gateway o
 entity keeps its state, and EcoPulse sends its command again after the reconnect. When the gateway refuses the answer
 to a command (the toggle in the web app was turned off), the integration stops switching, shows a repair issue and
 keeps reading; reload the entry after turning the toggle on again.
+
+## Controlling EcoPulse from Home Assistant
+
+A plant's owner (or anyone who may manage it) can allow Home Assistant to change the plant's assistants: turn on
+**Home Assistant control** in the plant's settings in the EcoPulse web app (offered once the gateway reports its
+encrypted connection), then reload the EcoPulse entry. Each PV wallbox and PV heater assistant then gets, on its own
+device:
+
+- **Mode** (`select`): e.g. off, fast or PV excess;
+- **Enabled** (`switch`);
+- **Battery support start** and **Battery support stop** (`number`, %): never below the plant's minimum SoC, and the
+  stop never above the start.
+
+The battery-SoC switch assistant gets its mode and enabled switch. The state comes from the gateway and follows any
+change, also one made in EcoPulse. A change you make here is applied by the gateway, logged there, and taken over by
+EcoPulse into the assistant's settings, marked "via Home Assistant", so the next configuration from the cloud keeps it.
+
+Controls exist **only over the encrypted connection** and only while the plant allows it. The gateway takes at most one
+change per second and 30 per minute; a refused change (a value outside the bounds, too many changes) is shown as an
+error and not repeated. When the plant's control is turned off, the gateway refuses the next change: the entities turn
+unavailable, a repair issue says why, and reading goes on; after a reload they are gone.
 
 ## Alarms
 

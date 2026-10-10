@@ -72,6 +72,9 @@ async def _load(
     assert await async_setup_component(
         hass, "input_boolean", {"input_boolean": {"pool_pump": None}}
     )
+    # The example token also has "control" (schema 7): its switch platform would load Home
+    # Assistant's switch domain over the services these tests stand in for it.
+    gateway.info["scopes"] = [s for s in gateway.info["scopes"] if s != "control"]
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await gateway.wait_for_stream(1)

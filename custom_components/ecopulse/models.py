@@ -140,6 +140,47 @@ class CatalogLoad:
 
 
 @dataclass(frozen=True, slots=True)
+class CatalogControl:
+    """One thing Home Assistant may change on an assistant (schema 7, #627): a select (mode), a
+    switch (enabled) or a number (battery-support SoC). ``unique_id`` is the assistant Guid and the
+    action; ``state_value_id`` the stream value that carries its current state; ``device_id`` the
+    assistant's device."""
+
+    unique_id: str
+    assistant_id: str
+    action: str
+    platform: str
+    name: str
+    device_id: str
+    device_name: str
+    options: tuple[str, ...] | None
+    min: float | None
+    max: float | None
+    step: float | None
+    unit: str | None
+    state_value_id: str
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CatalogControl:
+        options = data.get("options")
+        return cls(
+            unique_id=str(data["uniqueId"]),
+            assistant_id=str(data["assistantId"]),
+            action=str(data["action"]),
+            platform=str(data["platform"]),
+            name=str(data["name"]),
+            device_id=str(data["deviceId"]),
+            device_name=str(data.get("deviceName") or data["deviceId"]),
+            options=tuple(str(o) for o in options) if options is not None else None,
+            min=data.get("min"),
+            max=data.get("max"),
+            step=data.get("step"),
+            unit=data.get("unit"),
+            state_value_id=str(data.get("stateValueId") or data["uniqueId"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class Catalog:
     """``GET /catalog``."""
 
@@ -155,6 +196,8 @@ class Catalog:
     inputs: tuple[CatalogInput, ...] = ()
     # The loads (schema 6, #625): absent before schema 6 and while the token lacks "loads".
     loads: tuple[CatalogLoad, ...] = ()
+    # The controls (schema 7, #627): absent before schema 7 and while the token lacks "control".
+    controls: tuple[CatalogControl, ...] = ()
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Catalog:
@@ -170,6 +213,7 @@ class Catalog:
             ),
             inputs=tuple(CatalogInput.from_dict(i) for i in data.get("inputs") or ()),
             loads=tuple(CatalogLoad.from_dict(lo) for lo in data.get("loads") or ()),
+            controls=tuple(CatalogControl.from_dict(c) for c in data.get("controls") or ()),
         )
 
     @classmethod
