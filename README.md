@@ -62,6 +62,46 @@ The excess is measured at the grid, so once the load runs, its own draw is no lo
 the load's power and the hysteresis about as large: a 1.2 kW heater with threshold 1200 W and hysteresis 1200 W
 starts when 1.2 kW are spare and keeps running as long as the excess stays at 0 W or above.
 
+## Gateway problem sensors
+
+Every gateway device gets diagnostic binary sensors for what the gateway sees itself. They are computed on the
+gateway, so they keep telling the truth while the internet or EcoPulse is down:
+
+- **Cloud connection** (`connectivity`): on while the gateway is connected to EcoPulse. It follows the connection
+  as is, with no grace period, so a short reconnect (for example a certificate renewal) shows as a short off. A
+  gateway that is not set up for EcoPulse's cloud yet shows it off for good.
+- **Driver problem** (`problem`): on while one of the gateway's device drivers has failed, or has been trying to
+  reach its device for more than 120 seconds. The attribute `drivers` lists those drivers (up to 8) with `id`,
+  `state` (`failed` or `connecting`), `since` and `error` (a plain-language reason, or null). Which *device* is
+  affected also shows as that device's entities turning unavailable.
+- **Optimizer fallback** (`problem`, only on a gateway with an EcoPulse battery or heat pump optimizer): on while
+  the optimizer has stopped receiving its plan from EcoPulse and the gateway runs its safe fallback (zero export
+  for the battery, normal operation for the heat pump). The attribute `assistants` lists them with `id`, `kind`
+  (`battery` or `heatpump`) and `since`.
+
+The list attributes are empty (`[]`) while nothing is wrong, so a template can read them without a check. They are
+kept out of the recorder (Home Assistant's history database stores the state, not the lists), and so is every other
+list attribute the gateway sends. The names are translated (English, German).
+
+Example: get notified when a driver stays down.
+
+```yaml
+automation:
+  - alias: EcoPulse driver problem
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.haus_nord_driver_problem  # named after your gateway
+        to: "on"
+        for: "00:05:00"
+    actions:
+      - action: notify.notify
+        data:
+          message: >-
+            {% for d in state_attr('binary_sensor.haus_nord_driver_problem', 'drivers') %}
+            {{ d.id }}: {{ d.state }} since {{ d.since }} ({{ d.error or 'no reason given' }})
+            {% endfor %}
+```
+
 ## Requirements
 
 - Home Assistant **2025.10** or newer.

@@ -5,6 +5,8 @@ from __future__ import annotations
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
+from .fake_gateway import load_contract
+
 SOC = "0b6e1d2c-4a5f-4e3b-8c7d-9a1b2c3d4e5f"
 CHARGE_ENERGY = "1c7f2e3d-5b6a-4f4c-9d8e-0b2c3d4e5f60"
 CELL_TEMPERATURE = "2d8a3f4e-6c7b-4a5d-8e9f-1c3d4e5f6071"
@@ -13,6 +15,22 @@ WALLBOX_SETPOINT = "6c2e7d8a-0a1f-4e9b-8c3d-5a7182930415"
 GRID_POWER = "5b1d6c7f-9f0e-4d8a-9b2c-4f6071829304"
 SOLAR_EXCESS = "gw-7f3a9c:solar_excess_power"  # gateway entity, schema 2 (#623)
 SURPLUS_AVAILABLE = "gw-7f3a9c:solar_excess_power:surplus_available"  # derived by the plugin
+# The gateway's own problem sensors, schema 3 (#626).
+CLOUD_CONNECTED = "gw-7f3a9c:cloud_connected"
+DRIVER_PROBLEM = "gw-7f3a9c:driver_problem"
+DIRECTIVE_FALLBACK = "gw-7f3a9c:directive_fallback"
+
+# The catalog example lists a fully equipped gateway (schema 3): every gateway entity of the
+# contract plus one alarm entity per rule. Tests that count take the numbers from it.
+EXAMPLE_GATEWAY_ENTITIES: list[tuple[str, str]] = [
+    (e["platform"], e["uniqueId"])
+    for e in load_contract()["examples"]["catalog"]["gateway"]["entities"]
+]
+EXAMPLE_SIGNALS: list[tuple[str, str]] = [
+    (e["platform"], e["uniqueId"])
+    for d in load_contract()["examples"]["catalog"]["devices"]
+    for e in d["entities"]
+]
 
 GATEWAY_DEVICE = "gw-7f3a9c"
 

@@ -77,6 +77,25 @@
     "binary_sensor": {
       "surplus_available": {
         "name": "Überschuss verfügbar"
+      },
+      "cloud_connected": {
+        "name": "Cloud-Verbindung"
+      },
+      "driver_problem": {
+        "name": "Treiberproblem",
+        "state_attributes": {
+          "drivers": {
+            "name": "Treiber"
+          }
+        }
+      },
+      "directive_fallback": {
+        "name": "Optimierer-Rückfallebene",
+        "state_attributes": {
+          "assistants": {
+            "name": "Assistenten"
+          }
+        }
       }
     }
   }

@@ -20,8 +20,11 @@ from custom_components.ecopulse import api, const
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "c983bf9e3f8fbc273275b20f810a1c6f5eaceb0ce4454d52ae3016a58ef769cb"
-MANIFEST_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse" / "manifest.json"
+CONTRACT_SHA256 = "b68946f709feba29e2ead3c8326798a5fea64b8390f93472d354d31fff1c1fcb"
+COMPONENT_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse"
+MANIFEST_PATH = COMPONENT_PATH / "manifest.json"
+STRINGS_PATH = COMPONENT_PATH / "strings.json"
+TRANSLATIONS_PATH = COMPONENT_PATH / "translations"
 
 
 def test_fixture_is_the_pinned_contract() -> None:
@@ -29,7 +32,7 @@ def test_fixture_is_the_pinned_contract() -> None:
 
 
 def test_schema_and_api_version_are_the_ones_this_plugin_speaks(contract: dict[str, Any]) -> None:
-    assert contract["schemaVersion"] == 2
+    assert contract["schemaVersion"] == 3
     assert contract["apiVersion"] == const.API_VERSION
     assert contract["basePath"] == const.API_BASE_PATH
 
@@ -38,13 +41,48 @@ def test_gateway_entities_are_keyed_by_the_contract_template(contract: dict[str,
     # Schema 2 (#623): the gateway's own entities, unique id "{gatewayId}:{key}".
     section = contract["gatewayEntities"]
     gateway = contract["examples"]["catalog"]["gateway"]
+    keys = [e["key"] for e in section["entities"]]
     assert section["uniqueIdTemplate"] == const.GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE
-    assert [e["key"] for e in section["entities"]] == [const.SOLAR_EXCESS_POWER_KEY]
-    assert [e["uniqueId"] for e in gateway["entities"]] == [
-        const.GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE.format(
-            gatewayId=gateway["id"], key=const.SOLAR_EXCESS_POWER_KEY
-        )
+    assert keys[0] == const.SOLAR_EXCESS_POWER_KEY
+    example_ids = [e["uniqueId"] for e in gateway["entities"]]
+    assert example_ids[: len(keys)] == [
+        const.GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE.format(gatewayId=gateway["id"], key=key)
+        for key in keys
     ]
+
+
+def test_the_translated_gateway_entities_are_the_contract_s_problem_sensors(
+    contract: dict[str, Any],
+) -> None:
+    # Schema 3 (#626, ADR-231 §10): the gateway's own diagnostic binary sensors, named by the
+    # integration's translations; every one has a name in every language.
+    by_key = {e["key"]: e for e in contract["gatewayEntities"]["entities"]}
+    for key in const.TRANSLATED_GATEWAY_ENTITY_KEYS:
+        assert by_key[key]["platform"] == "binary_sensor"
+        assert by_key[key]["entityCategory"] == "diagnostic"
+        assert by_key[key]["source"] == "edge"
+    assert {
+        const.CLOUD_CONNECTED_KEY,
+        const.DRIVER_PROBLEM_KEY,
+        const.DIRECTIVE_FALLBACK_KEY,
+    } == const.TRANSLATED_GATEWAY_ENTITY_KEYS
+    for language in ("en", "de"):
+        names = json.loads((TRANSLATIONS_PATH / f"{language}.json").read_text(encoding="utf-8"))
+        for key in const.TRANSLATED_GATEWAY_ENTITY_KEYS:
+            assert names["entity"]["binary_sensor"][key]["name"], (language, key)
+    strings = json.loads(STRINGS_PATH.read_text(encoding="utf-8"))
+    english = json.loads((TRANSLATIONS_PATH / "en.json").read_text(encoding="utf-8"))
+    assert strings == english
+
+
+def test_value_attributes_and_their_unrecorded_keys_match(contract: dict[str, Any]) -> None:
+    # Schema 3 (#626, ADR-231 §12): "attributes" is the one optional value property; the
+    # unrecorded keys are every array attribute plus synced_at.
+    stream = contract["stream"]
+    assert stream["optionalValueProperties"] == ["attributes"]
+    assert stream["attributes"]["semantics"] == "replace"
+    assert frozenset(stream["attributes"]["unrecordedKeys"]) == const.UNRECORDED_ATTRIBUTE_KEYS
+    assert len(stream["attributes"]["unrecordedKeys"]) == len(const.UNRECORDED_ATTRIBUTE_KEYS)
 
 
 def test_auth_constants_match(contract: dict[str, Any]) -> None:

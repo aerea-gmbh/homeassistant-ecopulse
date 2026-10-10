@@ -48,10 +48,15 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class SignalValue:
-    """A value as the edge sent it; ``ts`` is None exactly when it was never read."""
+    """A value as the edge sent it; ``ts`` is None exactly when it was never read.
+
+    ``attributes`` (schema 3, #626) come complete with every value of an entity that has any
+    (contract semantics ``replace``); None when the edge sent none.
+    """
 
     value: Any
     ts: str | None
+    attributes: dict[str, Any] | None = None
 
 
 def next_backoff(delay: float) -> float:
@@ -226,7 +231,13 @@ class EcoPulseStreamCoordinator:
             unique_id = item.get("id") if isinstance(item, dict) else None
             if not isinstance(unique_id, str) or unique_id not in self._value_ids:
                 continue  # contract onUnknownValueId: ignore, never create an entity
-            self.values[unique_id] = SignalValue(item.get("value"), item.get("ts"))
+            # Tolerant receiver: unknown properties are ignored, malformed attributes too.
+            attributes = item.get("attributes")
+            self.values[unique_id] = SignalValue(
+                item.get("value"),
+                item.get("ts"),
+                attributes if isinstance(attributes, dict) else None,
+            )
             stored.append(unique_id)
         return stored
 

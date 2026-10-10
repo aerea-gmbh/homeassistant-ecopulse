@@ -41,6 +41,21 @@ EVENT_CATALOG: Final = "catalog"
 GATEWAY_ENTITY_UNIQUE_ID_TEMPLATE: Final = "{gatewayId}:{key}"
 SOLAR_EXCESS_POWER_KEY: Final = "solar_excess_power"
 
+# The gateway's own problem sensors (schema 3, #626, ADR-231 §10). Named by this integration's
+# translations (en, de) rather than the catalog's English name.
+CLOUD_CONNECTED_KEY: Final = "cloud_connected"
+DRIVER_PROBLEM_KEY: Final = "driver_problem"
+DIRECTIVE_FALLBACK_KEY: Final = "directive_fallback"
+TRANSLATED_GATEWAY_ENTITY_KEYS: Final = frozenset(
+    {CLOUD_CONNECTED_KEY, DRIVER_PROBLEM_KEY, DIRECTIVE_FALLBACK_KEY}
+)
+
+# Contract "stream.attributes" (schema 3, #626): a value's attributes; these keys stay out of
+# the recorder (the arrays, and synced_at, which moves with every cloud resync).
+UNRECORDED_ATTRIBUTE_KEYS: Final = frozenset(
+    {"synced_at", "drivers", "assistants", "hourly", "prices", "plan", "alarms"}
+)
+
 # "Surplus available" is the plugin's, not the contract's: its settings are entry options
 # (PO 09.10.), derived from solar_excess_power. Its unique id extends the source's, so it can
 # never collide with a "{gatewayId}:{key}" the edge adds later.
