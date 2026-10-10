@@ -117,6 +117,9 @@
         "description": "Das Gateway bietet {count} Verbraucher an, die EcoPulse schalten darf, zum Beispiel einen Heizstab oder eine Poolpumpe bei Solarüberschuss. Wähle für jeden den Schalter, das Licht, den Ventilator oder den Input-Boolean, den EcoPulse dafür schaltet; bleibt ein Verbraucher leer, kann EcoPulse ihn nicht schalten. Befehle kommen nur über die verschlüsselte Verbindung. Entitäten von EcoPulse selbst werden nicht angeboten."
       }
     },
+    "error": {
+      "entity_mapped_twice": "Die Entität {entities} ist für mehr als eine Last gewählt. Jede Last braucht ihre eigene Entität: Zwei Lasten an einer Entität würden gegeneinander schalten."
+    },
     "abort": {
       "no_inputs": "Das Gateway bietet keine Eingänge an. Lege in der EcoPulse-Web-App den Home-Assistant-Treiber des Gateways mit den zu speisenden Geräten an und schalte auf der Home-Assistant-Karte des Gateways „Werte aus Home Assistant“ ein; lade danach diese Integration neu.",
       "no_loads": "Das Gateway bietet keine Verbraucher an. Lege in der EcoPulse-Web-App die Verbraucher auf der Home-Assistant-Karte des Gateways an und schalte „Von EcoPulse geschaltete Verbraucher“ ein; lade danach diese Integration neu."

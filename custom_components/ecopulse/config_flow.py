@@ -12,6 +12,7 @@ the slot's unique id; a changed mapping reloads the entry).
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping
 import logging
 from typing import Any
@@ -492,16 +493,27 @@ class EcoPulseOptionsFlow(OptionsFlow):
         loads = self._catalog_loads()
         if not loads:
             return self.async_abort(reason="no_loads")
+        current: dict[str, str] = self.config_entry.options.get(CONF_LOADS) or {}
+        errors: dict[str, str] = {}
+        placeholders = {"count": str(len(loads)), "entities": ""}
         if user_input is not None:
             mapping = {
                 self._load_by_label[label]: entity_id
                 for label, entity_id in user_input.items()
                 if label in self._load_by_label and entity_id
             }
-            return self.async_create_entry(data={**self.config_entry.options, CONF_LOADS: mapping})
+            # Review r2 LOW-C: one entity for two loads would make them fight (each command
+            # replaces the other's) and count its power twice.
+            if twice := _mapped_twice(mapping):
+                errors["base"] = "entity_mapped_twice"
+                placeholders["entities"] = ", ".join(twice)
+                current = mapping
+            else:
+                return self.async_create_entry(
+                    data={**self.config_entry.options, CONF_LOADS: mapping}
+                )
 
         own = sorted(ecopulse_entity_ids(self.hass))
-        current = self.config_entry.options.get(CONF_LOADS) or {}
         fields: dict[Any, Any] = {}
         suggested: dict[str, str] = {}
         self._load_by_label = {}
@@ -516,7 +528,8 @@ class EcoPulseOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="loads",
             data_schema=self.add_suggested_values_to_schema(vol.Schema(fields), suggested),
-            description_placeholders={"count": str(len(loads))},
+            errors=errors,
+            description_placeholders=placeholders,
         )
 
     def _slots(self) -> tuple[CatalogInput, ...]:
@@ -533,6 +546,12 @@ def _slot_label(slot: CatalogInput, taken: Mapping[str, str]) -> str:
     unit = f" ({slot.unit})" if slot.unit else ""
     label = f"{slot.device_name}: {slot.name}{unit}" if slot.device_name else f"{slot.name}{unit}"
     return f"{label} [{slot.key}]" if label in taken else label
+
+
+def _mapped_twice(mapping: dict[str, str]) -> list[str]:
+    """The entities the mapping names for more than one load, sorted."""
+    counts = Counter(mapping.values())
+    return sorted(entity_id for entity_id, count in counts.items() if count > 1)
 
 
 def _load_label(load: CatalogLoad, taken: Mapping[str, str]) -> str:

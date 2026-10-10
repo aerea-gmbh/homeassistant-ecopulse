@@ -117,6 +117,9 @@
         "description": "The gateway offers {count} loads EcoPulse may switch, for example a heating rod or a pool pump on solar surplus. Pick the switch, light, fan or input boolean EcoPulse switches for each; leave a load empty and EcoPulse cannot switch it. Commands arrive only over the encrypted connection. EcoPulse's own entities are not offered."
       }
     },
+    "error": {
+      "entity_mapped_twice": "The entity {entities} is picked for more than one load. Each load needs its own entity: two loads on one entity would switch against each other."
+    },
     "abort": {
       "no_inputs": "The gateway offers no inputs. In the EcoPulse web app, add the gateway's Home Assistant driver with the devices to feed, and turn on \"Values from Home Assistant\" on the gateway's Home Assistant card; then reload this integration.",
       "no_loads": "The gateway offers no loads. In the EcoPulse web app, add the loads on the gateway's Home Assistant card and turn on \"Loads switched by EcoPulse\"; then reload this integration."

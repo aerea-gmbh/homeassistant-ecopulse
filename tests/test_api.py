@@ -144,6 +144,21 @@ async def test_stream_yields_the_snapshot_then_pushed_events(
     assert gateway.requests[-1].authorization == f"Bearer {gateway.token}"
 
 
+# Review r2 LOW-A: the client's own rule, behind the switcher's (which asks only with a pin): a
+# stream in the clear never asks for commands, whatever the caller says.
+async def test_a_stream_in_the_clear_never_asks_for_commands_even_when_told_to(
+    session: aiohttp.ClientSession, gateway: FakeGateway
+) -> None:
+    async def consume() -> None:
+        async for _event in _client(session, gateway).async_stream(commands=True):
+            return
+
+    await asyncio.wait_for(consume(), 5)
+
+    assert gateway.requests[-1].path.endswith("/stream")
+    assert gateway.requests[-1].query == {}
+
+
 @pytest.mark.usefixtures("short_dead_timeout")
 async def test_stream_silence_beyond_the_dead_timeout_raises(
     session: aiohttp.ClientSession, gateway: FakeGateway

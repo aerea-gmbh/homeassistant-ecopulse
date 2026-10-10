@@ -413,6 +413,32 @@ async def test_the_loads_step_maps_switchable_entities_to_the_loads_and_hides_ec
     assert entry.options[CONF_LOADS] == {POOL_PUMP: "input_boolean.pool_pump"}
 
 
+# Review r2 LOW-C: one entity for two loads would make them fight (each command replaces the
+# other's) and count its power twice; the step refuses it and saves nothing.
+@pytest.mark.usefixtures("fast_backoff")
+async def test_the_loads_step_refuses_one_entity_for_two_loads(
+    hass: HomeAssistant, tls_gateway: FakeGateway
+) -> None:
+    entry = await _load(hass, tls_gateway, _entry(tls_gateway, options={}))
+    menu = await hass.config_entries.options.async_init(entry.entry_id)
+    form = await hass.config_entries.options.async_configure(
+        menu["flow_id"], {"next_step_id": "loads"}
+    )
+
+    result = await hass.config_entries.options.async_configure(
+        form["flow_id"],
+        {
+            "Heating rod (3000 W)": "input_boolean.pool_pump",
+            "Pool pump (1200 W)": "input_boolean.pool_pump",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "entity_mapped_twice"}
+    assert result["description_placeholders"]["entities"] == "input_boolean.pool_pump"
+    assert CONF_LOADS not in entry.options
+
+
 @pytest.mark.usefixtures("fast_backoff")
 async def test_a_gateway_without_loads_says_how_to_get_them(
     hass: HomeAssistant, tls_gateway: FakeGateway

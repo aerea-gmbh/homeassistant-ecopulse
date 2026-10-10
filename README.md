@@ -172,7 +172,8 @@ PV heater assistant switches them like relays: with its priority, minimum on and
    nominal power on the gateway's Home Assistant card, and turn on **Loads switched by EcoPulse** there. Build the
    heater assistant's levels from the loads.
 2. Reload the EcoPulse entry in Home Assistant, then *Configure > Loads switched by EcoPulse*: pick the switch, light,
-   fan or input boolean EcoPulse switches for each load. EcoPulse's own entities are not offered.
+   fan or input boolean EcoPulse switches for each load. EcoPulse's own entities are not offered, and one entity can
+   serve only one load.
 
 When EcoPulse switches a load, the integration calls the entity's `turn_on` or `turn_off` and reports the result (and
 the entity's state) back to the gateway. A load nobody mapped, a service that fails or takes longer than 8 s, and an
