@@ -248,6 +248,102 @@
             "name": "Preise"
           }
         }
+      },
+      "battery_plan_state": {
+        "name": "Batterieplan",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "slot_start": {
+            "name": "Slotbeginn"
+          },
+          "slot_end": {
+            "name": "Slotende"
+          },
+          "next_state": {
+            "name": "Nächster Zustand",
+            "state": {
+              "zero_export": "Eigenverbrauch",
+              "zero_export_with_no_excess_to_grid": "Eigenverbrauch ohne Einspeisung",
+              "charge_from_grid": "Aus dem Netz laden",
+              "discharge_to_grid": "Ins Netz entladen"
+            }
+          },
+          "next_change_at": {
+            "name": "Nächster Wechsel"
+          },
+          "plan": {
+            "name": "Plan"
+          }
+        },
+        "state": {
+          "zero_export": "Eigenverbrauch",
+          "zero_export_with_no_excess_to_grid": "Eigenverbrauch ohne Einspeisung",
+          "charge_from_grid": "Aus dem Netz laden",
+          "discharge_to_grid": "Ins Netz entladen"
+        }
+      },
+      "battery_plan_soc": {
+        "name": "Batterieplan Ladezustand",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          }
+        }
+      },
+      "heatpump_plan_state": {
+        "name": "Wärmepumpenplan",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Mit Cloud synchronisiert"
+          },
+          "synced_at": {
+            "name": "Synchronisiert um"
+          },
+          "computed_at": {
+            "name": "Berechnet um"
+          },
+          "slot_start": {
+            "name": "Slotbeginn"
+          },
+          "slot_end": {
+            "name": "Slotende"
+          },
+          "next_state": {
+            "name": "Nächster Zustand",
+            "state": {
+              "blocked": "Gesperrt",
+              "normal": "Normal",
+              "recommended": "Anhebung empfohlen",
+              "forced": "Anhebung erzwungen"
+            }
+          },
+          "next_change_at": {
+            "name": "Nächster Wechsel"
+          },
+          "plan": {
+            "name": "Plan"
+          }
+        },
+        "state": {
+          "blocked": "Gesperrt",
+          "normal": "Normal",
+          "recommended": "Anhebung empfohlen",
+          "forced": "Anhebung erzwungen"
+        }
       }
     }
   }

@@ -248,6 +248,102 @@
             "name": "Prices"
           }
         }
+      },
+      "battery_plan_state": {
+        "name": "Battery plan",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "slot_start": {
+            "name": "Slot start"
+          },
+          "slot_end": {
+            "name": "Slot end"
+          },
+          "next_state": {
+            "name": "Next state",
+            "state": {
+              "zero_export": "Self-consumption",
+              "zero_export_with_no_excess_to_grid": "Self-consumption, no feed-in",
+              "charge_from_grid": "Charge from grid",
+              "discharge_to_grid": "Discharge to grid"
+            }
+          },
+          "next_change_at": {
+            "name": "Next change at"
+          },
+          "plan": {
+            "name": "Plan"
+          }
+        },
+        "state": {
+          "zero_export": "Self-consumption",
+          "zero_export_with_no_excess_to_grid": "Self-consumption, no feed-in",
+          "charge_from_grid": "Charge from grid",
+          "discharge_to_grid": "Discharge to grid"
+        }
+      },
+      "battery_plan_soc": {
+        "name": "Battery plan state of charge",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "heatpump_plan_state": {
+        "name": "Heat pump plan",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "slot_start": {
+            "name": "Slot start"
+          },
+          "slot_end": {
+            "name": "Slot end"
+          },
+          "next_state": {
+            "name": "Next state",
+            "state": {
+              "blocked": "Blocked",
+              "normal": "Normal",
+              "recommended": "Boost recommended",
+              "forced": "Boost forced"
+            }
+          },
+          "next_change_at": {
+            "name": "Next change at"
+          },
+          "plan": {
+            "name": "Plan"
+          }
+        },
+        "state": {
+          "blocked": "Blocked",
+          "normal": "Normal",
+          "recommended": "Boost recommended",
+          "forced": "Boost forced"
+        }
       }
     }
   }

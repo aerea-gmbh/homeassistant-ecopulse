@@ -64,7 +64,14 @@ FORECAST_ENTITY_KEYS: Final = frozenset(
         "price_now",
     }
 )
-TRANSLATED_GATEWAY_ENTITY_KEYS: Final = PROBLEM_SENSOR_KEYS | FORECAST_ENTITY_KEYS
+# The optimizers' plan sensors (schema 3, #626 S7.3, ADR-231): fed by the cloud's "battery.plan"
+# and "heatpump.plan" pushes, listed by the gateway while it holds a plan of its optimizer.
+PLAN_ENTITY_KEYS: Final = frozenset(
+    {"battery_plan_state", "battery_plan_soc", "heatpump_plan_state"}
+)
+TRANSLATED_GATEWAY_ENTITY_KEYS: Final = (
+    PROBLEM_SENSOR_KEYS | FORECAST_ENTITY_KEYS | PLAN_ENTITY_KEYS
+)
 
 # Contract "stream.attributes" (schema 3, #626): a value's attributes; these keys stay out of
 # the recorder (the arrays, and synced_at, which moves with every cloud resync).

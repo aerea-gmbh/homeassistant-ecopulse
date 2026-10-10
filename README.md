@@ -124,6 +124,21 @@ available and `cloud_synced` turns false. Once the delivered forecast runs out (
 "tomorrow" has no data left) the value becomes unknown rather than showing an old day. The lists and `synced_at` are kept out of the
 recorder. The names are translated (English, German).
 
+## Battery and heat pump plans
+
+When EcoPulse's optimizer plans your battery or your heat pump, the gateway that runs the optimizer also gets:
+
+- **Battery plan**: what the battery is planned to do in the running slot (`zero_export` self-consumption,
+  `zero_export_with_no_excess_to_grid`, `charge_from_grid`, `discharge_to_grid`), and **Battery plan state of
+  charge** (%), the state of charge planned for the end of the running slot.
+- **Heat pump plan**: `blocked`, `normal`, `recommended` or `forced` for the running slot.
+
+The two plan sensors carry `slot_start`, `slot_end`, `next_state`, `next_change_at` and `plan`: the coming runs of
+one state, each with its `start`, `state` and (battery) the `soc` planned at its end. Like the forecasts they carry
+`cloud_synced`, `synced_at` and `computed_at`, keep moving through a cloud outage and become unknown once the plan
+runs out. A gateway shows one plan per kind, that of its enabled optimizer with the lowest id; the states and names
+are translated (English, German).
+
 ## Requirements
 
 - Home Assistant **2025.10** or newer.
