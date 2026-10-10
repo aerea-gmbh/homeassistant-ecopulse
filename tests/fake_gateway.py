@@ -2,6 +2,10 @@
 
 It mirrors the edge's order of checks (ADR-230 §4): disabled -> 404, blocked -> 429, no or
 wrong token -> 401, forced status (e.g. 403) -> that status, unknown path -> 404.
+
+With ``tls=True`` it serves HTTPS with a self-signed ECDSA P-256 certificate of its own, like
+the gateway's TLS port (#610 S8-TLS); ``fingerprint`` is that certificate's SHA-256 in the
+contract format, and ``/info`` names it.
 """
 
 from __future__ import annotations
@@ -9,12 +13,20 @@ from __future__ import annotations
 import asyncio
 import copy
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+import hashlib
 import json
 from pathlib import Path
+import ssl
+import tempfile
 from typing import Any
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 CONTRACT_PATH = Path(__file__).parent / "fixtures" / "ha-api-contract.json"
 
@@ -40,8 +52,10 @@ class FakeGateway:
     forced_status: int | None = None
     redirect_to: str | None = None
     send_snapshot: bool = True
+    tls: bool = False
     requests: list[RecordedRequest] = field(default_factory=list)
     stream_connections: int = 0
+    fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         examples = self.contract["examples"]
@@ -57,11 +71,26 @@ class FakeGateway:
 
     # -- lifecycle -----------------------------------------------------------------------------
 
-    async def start(self) -> None:
+    async def start(self, port: int | None = None) -> None:
         app = web.Application()
         app.router.add_get("/api/ha/v1/{tail:.*}", self._handle)
-        self._server = TestServer(app, host="127.0.0.1")
-        await self._server.start_server()
+        self._server = TestServer(app, host="127.0.0.1", port=port)
+        context = self._new_certificate() if self.tls else None
+        await self._server.start_server(ssl=context)
+        if self.tls:
+            self.info["transport"] = {
+                "tls": True,
+                "tlsPort": self.port,
+                "certificateSha256": self.fingerprint,
+            }
+
+    async def restart_with_a_new_certificate(self) -> None:
+        """The gateway made a new certificate (its file was lost): same port, new fingerprint."""
+        port = self.port
+        assert self._server is not None
+        self.drop_streams()  # an open stream would hold the close until the client gives up
+        await self._server.close()
+        await self.start(port)
 
     async def close(self) -> None:
         # Refuse new streams first: a client reconnecting during teardown would otherwise open a
@@ -74,6 +103,36 @@ class FakeGateway:
     @property
     def host(self) -> str:
         return "127.0.0.1"
+
+    def _new_certificate(self) -> ssl.SSLContext:
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "EcoPulse EdgeGateway (test)")])
+        now = datetime.now(UTC)
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=1))
+            .not_valid_after(now + timedelta(days=365))
+            .sign(key, hashes.SHA256())
+        )
+        der = certificate.public_bytes(serialization.Encoding.DER)
+        self.fingerprint = ":".join(f"{b:02X}" for b in hashlib.sha256(der).digest())
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        with tempfile.TemporaryDirectory() as directory:
+            cert_file, key_file = Path(directory, "cert.pem"), Path(directory, "key.pem")
+            cert_file.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+            key_file.write_bytes(
+                key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.PKCS8,
+                    serialization.NoEncryption(),
+                )
+            )
+            context.load_cert_chain(cert_file, key_file)
+        return context
 
     @property
     def port(self) -> int:

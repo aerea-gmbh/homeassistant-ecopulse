@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN, Platform
+from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -16,9 +16,11 @@ from yarl import URL
 from .api import (
     EcoPulseApiClient,
     EcoPulseAuthError,
+    EcoPulseCertificateMismatchError,
     EcoPulseError,
     EcoPulseNotEnabledError,
     EcoPulseRateLimitedError,
+    client_for,
 )
 from .const import BACKOFF_INITIAL_SECONDS, DOMAIN, GATEWAY_MODEL, MANUFACTURER
 from .coordinator import EcoPulseStreamCoordinator, wait_after_failure
@@ -40,15 +42,16 @@ type EcoPulseConfigEntry = ConfigEntry[EcoPulseRuntimeData]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> bool:
-    client = EcoPulseApiClient(
-        async_get_clientsession(hass),
-        entry.data[CONF_HOST],
-        entry.data[CONF_PORT],
-        entry.data[CONF_TOKEN],
-    )
+    client = client_for(async_get_clientsession(hass), entry.data)
     initial_wait = 0.0
     try:
         catalog = await client.async_get_catalog()
+    except EcoPulseCertificateMismatchError as err:
+        # Contract tls.client.onMismatch: no request was sent; only the user may pin anew.
+        raise ConfigEntryAuthFailed(
+            f"The gateway presented another TLS certificate (SHA-256 {err.seen}) than the pinned "
+            "one; confirm the new fingerprint against the EcoPulse web app"
+        ) from err
     except EcoPulseAuthError as err:
         raise ConfigEntryAuthFailed("The gateway rejected the integration token") from err
     except (EcoPulseNotEnabledError, EcoPulseRateLimitedError) as err:

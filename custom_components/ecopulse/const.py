@@ -18,6 +18,17 @@ DEFAULT_PORT: Final = 8080
 TOKEN_PREFIX: Final = "ecp_ha_"
 AUTH_REALM: Final = "ecopulse-ha"
 
+# Contract "tls" (schema 4, #610 S8-TLS, ADR-232): the gateway serves the same API over HTTPS on
+# its own port with a self-signed certificate; the integration pins the certificate's SHA-256.
+DEFAULT_TLS_PORT: Final = 8443
+CONF_TLS_FINGERPRINT: Final = "tls_fingerprint"
+CONF_USE_TLS: Final = "use_tls"
+CONF_TLS_PORT: Final = "tls_port"
+CONF_FINGERPRINT_MATCHES: Final = "fingerprint_matches"
+SCOPES_REQUIRING_TLS: Final = frozenset({"inputs", "loads", "control"})
+FINGERPRINT_PATTERN: Final = r"^[0-9A-F]{2}(:[0-9A-F]{2}){31}$"
+ERROR_TLS_REQUIRED: Final = "tls_required"
+
 ZEROCONF_SERVICE_TYPE: Final = "_ecopulse._tcp.local."
 ZEROCONF_TXT_ID: Final = "id"
 ZEROCONF_TXT_API: Final = "api"

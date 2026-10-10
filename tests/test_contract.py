@@ -8,6 +8,7 @@ changes, this test turns red until the fixture and the plugin are updated togeth
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -17,10 +18,11 @@ from typing import Any
 import pytest
 
 from custom_components.ecopulse import api, const
+from custom_components.ecopulse.models import GatewayInfo
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "b68946f709feba29e2ead3c8326798a5fea64b8390f93472d354d31fff1c1fcb"
+CONTRACT_SHA256 = "908d30ee6e17777eda35b1315274b5a9702afd96550d16b94eb6a64323e72dc4"
 COMPONENT_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse"
 MANIFEST_PATH = COMPONENT_PATH / "manifest.json"
 STRINGS_PATH = COMPONENT_PATH / "strings.json"
@@ -32,7 +34,7 @@ def test_fixture_is_the_pinned_contract() -> None:
 
 
 def test_schema_and_api_version_are_the_ones_this_plugin_speaks(contract: dict[str, Any]) -> None:
-    assert contract["schemaVersion"] == 3
+    assert contract["schemaVersion"] == 4
     assert contract["apiVersion"] == const.API_VERSION
     assert contract["basePath"] == const.API_BASE_PATH
 
@@ -218,6 +220,49 @@ def test_manifest_announces_the_contract_zeroconf_type(contract: dict[str, Any])
     ]
     assert manifest["domain"] == const.DOMAIN
     assert manifest["iot_class"] == "local_push"
+
+
+def test_tls_constants_match_and_the_fingerprint_rule_is_the_contract_s(
+    contract: dict[str, Any],
+) -> None:
+    # Schema 4 (#610 S8-TLS, ADR-232): the pin is the SHA-256 of the DER certificate in uppercase
+    # hex pairs with colons, recomputed here on the example certificate, as cloud and edge do.
+    tls = contract["tls"]
+    assert tls["defaultPort"] == const.DEFAULT_TLS_PORT
+    assert frozenset(tls["scopesRequiringTls"]) == const.SCOPES_REQUIRING_TLS
+    assert "read" not in const.SCOPES_REQUIRING_TLS
+    assert tls["fingerprint"] == {
+        "algorithm": "sha256",
+        "over": "der-certificate",
+        "format": "uppercase-hex-colon-separated",
+        "pattern": const.FINGERPRINT_PATTERN,
+    }
+    assert tls["client"] == {
+        "pin": "certificate-sha256",
+        "firstPin": "confirm-against-cloud",
+        "onMismatch": "reauth",
+        "fallbackToPlainHttp": False,
+    }
+    example = contract["examples"]["tls"]
+    der = base64.b64decode(example["certificateDer"])
+    assert api.format_fingerprint(hashlib.sha256(der).digest()) == example["certificateSha256"]
+    assert api.fingerprint_digest(example["certificateSha256"]) == hashlib.sha256(der).digest()
+    assert {e["code"]: e["client"] for e in contract["errors"]}[
+        const.ERROR_TLS_REQUIRED
+    ] == "reauth"
+
+
+def test_info_transport_is_read(contract: dict[str, Any]) -> None:
+    info = GatewayInfo.from_dict(contract["examples"]["info"])
+    transport = contract["examples"]["info"]["transport"]
+    assert (info.tls_port, info.tls_fingerprint) == (
+        transport["tlsPort"],
+        transport["certificateSha256"],
+    )
+    older = GatewayInfo.from_dict(
+        {k: v for k, v in contract["examples"]["info"].items() if k != "transport"}
+    )
+    assert (older.tls_port, older.tls_fingerprint) == (None, None)
 
 
 _ERROR_FOR_ACTION = {
