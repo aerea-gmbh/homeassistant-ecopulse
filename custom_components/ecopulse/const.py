@@ -46,8 +46,38 @@ SOLAR_EXCESS_POWER_KEY: Final = "solar_excess_power"
 CLOUD_CONNECTED_KEY: Final = "cloud_connected"
 DRIVER_PROBLEM_KEY: Final = "driver_problem"
 DIRECTIVE_FALLBACK_KEY: Final = "directive_fallback"
-TRANSLATED_GATEWAY_ENTITY_KEYS: Final = frozenset(
+PROBLEM_SENSOR_KEYS: Final = frozenset(
     {CLOUD_CONNECTED_KEY, DRIVER_PROBLEM_KEY, DIRECTIVE_FALLBACK_KEY}
+)
+# The forecast and price sensors (schema 3, #626 S7.2, ADR-231): fed by the cloud's
+# "forecast.summary" push, listed by the gateway while the push carries their section.
+FORECAST_ENTITY_KEYS: Final = frozenset(
+    {
+        "pv_forecast_today",
+        "pv_forecast_remaining_today",
+        "pv_forecast_tomorrow",
+        "pv_forecast_power_now",
+        "pv_forecast_power_next_hour",
+        "consumption_forecast_today",
+        "consumption_forecast_remaining_today",
+        "consumption_forecast_tomorrow",
+        "price_now",
+    }
+)
+# The optimizers' plan sensors (schema 3, #626 S7.3, ADR-231): fed by the cloud's "battery.plan"
+# and "heatpump.plan" pushes, listed by the gateway while it holds a plan of its optimizer.
+PLAN_ENTITY_KEYS: Final = frozenset(
+    {"battery_plan_state", "battery_plan_soc", "heatpump_plan_state"}
+)
+# The alarm sensors (schema 3, #626 S7.4, ADR-231 §9): fed by the cloud's "alerts.state" push.
+# "alarm" is named by the translations; a rule's sensor ("alarm_{ruleId}", contract family) is
+# named after the rule, and takes only its attribute names from the translations.
+ALARM_KEY: Final = "alarm"
+ALARM_ENTITY_KEYS: Final = frozenset({ALARM_KEY})
+ALARM_RULE_KEY_PREFIX: Final = "alarm_"
+ALARM_RULE_TRANSLATION_KEY: Final = "alarm_rule"
+TRANSLATED_GATEWAY_ENTITY_KEYS: Final = (
+    PROBLEM_SENSOR_KEYS | FORECAST_ENTITY_KEYS | PLAN_ENTITY_KEYS | ALARM_ENTITY_KEYS
 )
 
 # Contract "stream.attributes" (schema 3, #626): a value's attributes; these keys stay out of

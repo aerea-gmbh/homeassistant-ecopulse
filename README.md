@@ -102,6 +102,60 @@ automation:
             {% endfor %}
 ```
 
+## Forecasts and electricity price
+
+When EcoPulse has a forecast or a price for your plant, the gateway device also gets these sensors. EcoPulse
+computes them in its cloud and sends them to the gateway, which keeps them on its disk and works out the current
+values itself, so they keep moving through a cloud outage:
+
+- **PV forecast today / tomorrow / remaining today** (kWh), with the attribute `hourly` (`start`, `wh`) on today and
+  tomorrow, and **PV forecast power now / next hour** (W).
+- **Consumption forecast today / tomorrow / remaining today** (kWh), `hourly` on today and tomorrow.
+- **Electricity price** (for example `EUR/kWh`, the currency of your tariff): the import price of the running slot,
+  with `export_now`, `slot_start`, `slot_end` and `prices` (the coming slots with `start`, `import`, `export`). A
+  flat tariff shows its one price with no slot and an empty `prices`; a tiered tariff shows no price at all.
+
+The energy forecasts have no state class on purpose: they are no meters, so they do not belong in the Energy
+dashboard. A sensor only exists while EcoPulse delivers its part: a plant without a price has no price sensor.
+
+Each of them also carries `cloud_synced` (whether EcoPulse currently delivers this data), `synced_at` (when it
+last arrived) and `computed_at` (when EcoPulse computed it). While the cloud is unreachable the values stay
+available and `cloud_synced` turns false. Once the delivered forecast runs out (after about a day without the cloud,
+"tomorrow" has no data left) the value becomes unknown rather than showing an old day. The lists and `synced_at` are kept out of the
+recorder. The names are translated (English, German).
+
+## Battery and heat pump plans
+
+When EcoPulse's optimizer plans your battery or your heat pump, the gateway that runs the optimizer also gets:
+
+- **Battery plan**: what the battery is planned to do in the running slot (`zero_export` self-consumption,
+  `zero_export_with_no_excess_to_grid`, `charge_from_grid`, `discharge_to_grid`), and **Battery plan state of
+  charge** (%), the state of charge planned for the end of the running slot.
+- **Heat pump plan**: `blocked`, `normal`, `recommended` or `forced` for the running slot.
+
+The two plan sensors carry `slot_start`, `slot_end`, `next_state`, `next_change_at` and `plan`: the coming runs of
+one state, each with its `start`, `state` and (battery) the `soc` planned at its end. Like the forecasts they carry
+`cloud_synced`, `synced_at` and `computed_at`, keep moving through a cloud outage and become unknown once the plan
+runs out. A gateway shows one plan per kind, that of its enabled optimizer with the lowest id; the states and names
+are translated (English, German).
+
+## Alarms
+
+Your EcoPulse alarm rules show up on the gateway device as problem sensors, so an automation can react to an alarm
+without the EcoPulse app:
+
+- **Alarm**: on while any rule of the plant fires, with `active_count`, `critical_count` and `alarms` (up to 10
+  firing rules with `rule`, `severity`, `since`, critical ones first, then the oldest).
+- **One sensor per alarm rule**, named after the rule: on while the rule fires, with `rule_type`, `severity`
+  (`warning` or `critical`), `since`, `message`, `acknowledged` and `in_maintenance`. An acknowledged alarm, or one
+  during a maintenance window, stays on: the condition is still there, the attributes say it is being handled.
+
+Every rule of the plant is shown, also on a second gateway of the same plant; a gateway's own "gateway offline" rule
+is left out on that gateway, since it could never show it firing. Adding, deleting or renaming a rule in EcoPulse
+adds, removes or renames its sensor within seconds (the integration reloads). While the cloud is unreachable the
+alarms keep their last state and `cloud_synced` turns false; a rule never disappears just because the cloud is gone.
+The alarm list and `synced_at` are kept out of the recorder.
+
 ## Requirements
 
 - Home Assistant **2025.10** or newer.

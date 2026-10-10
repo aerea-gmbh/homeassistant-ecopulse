@@ -96,6 +96,313 @@
             "name": "Assistants"
           }
         }
+      },
+      "alarm": {
+        "name": "Alarm",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "active_count": {
+            "name": "Active alarms"
+          },
+          "critical_count": {
+            "name": "Critical alarms"
+          },
+          "alarms": {
+            "name": "Alarms"
+          }
+        }
+      },
+      "alarm_rule": {
+        "name": "Alarm rule",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "rule_type": {
+            "name": "Rule type"
+          },
+          "severity": {
+            "name": "Severity",
+            "state": {
+              "warning": "Warning",
+              "critical": "Critical"
+            }
+          },
+          "since": {
+            "name": "Since"
+          },
+          "message": {
+            "name": "Message"
+          },
+          "acknowledged": {
+            "name": "Acknowledged"
+          },
+          "in_maintenance": {
+            "name": "In maintenance"
+          }
+        }
+      }
+    },
+    "sensor": {
+      "pv_forecast_today": {
+        "name": "PV forecast today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "pv_forecast_remaining_today": {
+        "name": "PV forecast remaining today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "pv_forecast_tomorrow": {
+        "name": "PV forecast tomorrow",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "pv_forecast_power_now": {
+        "name": "PV forecast power now",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "pv_forecast_power_next_hour": {
+        "name": "PV forecast power next hour",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "consumption_forecast_today": {
+        "name": "Consumption forecast today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "consumption_forecast_remaining_today": {
+        "name": "Consumption forecast remaining today",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "consumption_forecast_tomorrow": {
+        "name": "Consumption forecast tomorrow",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "hourly": {
+            "name": "Hourly"
+          }
+        }
+      },
+      "price_now": {
+        "name": "Electricity price",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "slot_start": {
+            "name": "Slot start"
+          },
+          "slot_end": {
+            "name": "Slot end"
+          },
+          "export_now": {
+            "name": "Export price now"
+          },
+          "prices": {
+            "name": "Prices"
+          }
+        }
+      },
+      "battery_plan_state": {
+        "name": "Battery plan",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "slot_start": {
+            "name": "Slot start"
+          },
+          "slot_end": {
+            "name": "Slot end"
+          },
+          "next_state": {
+            "name": "Next state",
+            "state": {
+              "zero_export": "Self-consumption",
+              "zero_export_with_no_excess_to_grid": "Self-consumption, no feed-in",
+              "charge_from_grid": "Charge from grid",
+              "discharge_to_grid": "Discharge to grid"
+            }
+          },
+          "next_change_at": {
+            "name": "Next change at"
+          },
+          "plan": {
+            "name": "Plan"
+          }
+        },
+        "state": {
+          "zero_export": "Self-consumption",
+          "zero_export_with_no_excess_to_grid": "Self-consumption, no feed-in",
+          "charge_from_grid": "Charge from grid",
+          "discharge_to_grid": "Discharge to grid"
+        }
+      },
+      "battery_plan_soc": {
+        "name": "Battery plan state of charge",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          }
+        }
+      },
+      "heatpump_plan_state": {
+        "name": "Heat pump plan",
+        "state_attributes": {
+          "cloud_synced": {
+            "name": "Cloud synced"
+          },
+          "synced_at": {
+            "name": "Synced at"
+          },
+          "computed_at": {
+            "name": "Computed at"
+          },
+          "slot_start": {
+            "name": "Slot start"
+          },
+          "slot_end": {
+            "name": "Slot end"
+          },
+          "next_state": {
+            "name": "Next state",
+            "state": {
+              "blocked": "Blocked",
+              "normal": "Normal",
+              "recommended": "Boost recommended",
+              "forced": "Boost forced"
+            }
+          },
+          "next_change_at": {
+            "name": "Next change at"
+          },
+          "plan": {
+            "name": "Plan"
+          }
+        },
+        "state": {
+          "blocked": "Blocked",
+          "normal": "Normal",
+          "recommended": "Boost recommended",
+          "forced": "Boost forced"
+        }
       }
     }
   }
