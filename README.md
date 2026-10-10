@@ -160,7 +160,8 @@ The alarm list and `synced_at` are kept out of the recorder.
 
 - Home Assistant **2025.10** or newer.
 - An EcoPulse EdgeGateway with firmware that offers the Home Assistant API (`/api/ha/v1`), its **local web
-  server enabled**, and Home Assistant reachable on the same network as the gateway (port 8080 by default).
+  server enabled**, and Home Assistant reachable on the same network as the gateway (port 8080 by default, and
+  8443 for the encrypted connection; 18443 on a NAS).
 
 ## Installation via HACS
 
@@ -180,18 +181,34 @@ configuration and restart.
 3. In Home Assistant: *Settings > Devices & services*. If the gateway was discovered on your network, click
    *Configure* on it and paste the token. Otherwise *Add integration > EcoPulse* and enter the gateway's IP address
    (or host name), the port (8080 unless changed) and the token.
+4. **Encrypted connection (on by default).** Home Assistant connects to the gateway's TLS port (8443 unless changed)
+   and shows the **SHA-256 fingerprint** of the certificate the gateway presents. Compare it with the fingerprint in
+   the gateway's Home Assistant settings in the EcoPulse web app and confirm only if both match exactly. The token is
+   sent only after that, and from then on Home Assistant trusts only this certificate. Without the encrypted
+   connection the integration can only read values; anything it writes to EcoPulse later needs it.
 
 One config entry per gateway; a plant with several gateways is added once per gateway.
 
 **Rotating the token**: create a new token in the EcoPulse web app. The old one stops working immediately and Home
-Assistant asks you to re-authenticate the EcoPulse entry; paste the new token there.
+Assistant asks you to re-authenticate the EcoPulse entry; paste the new token there. An entry without the encrypted
+connection is offered to switch to it there.
+
+**A new gateway certificate**: the gateway keeps its certificate across restarts and updates. Should it ever present
+another one, Home Assistant sends nothing to it and asks you to re-authenticate; it then shows the new fingerprint to
+compare with the EcoPulse web app again. Another fingerprint than the web app's means another device is answering:
+do not confirm it.
 
 ## Security notes
 
 - The token can only **read** the values of this one gateway. It cannot change the gateway's configuration and
   does not open its web interface.
-- The connection is plain HTTP on your LAN, as the gateway's web interface. Someone who can sniff your LAN can
-  read the token and with it the values.
+- With the encrypted connection the token and the values travel over TLS, and the entry is pinned to the gateway's
+  certificate: it never falls back to plain HTTP. Without it the connection is plain HTTP on your LAN, as the
+  gateway's web interface, and someone who can sniff your LAN can read the token and with it the values; that is
+  why the gateway accepts anything that writes only over the encrypted connection.
+- A discovery announcement never moves a configured gateway on its own (anyone on the LAN can announce a gateway's
+  id): an entry with the encrypted connection follows a new address only if that address presents the trusted
+  certificate; an entry without it keeps its address until you change it.
 - Repeated wrong tokens lock the client out for a while (HTTP 429). The setup form refuses anything that does not
   look like an integration token before it contacts the gateway.
 

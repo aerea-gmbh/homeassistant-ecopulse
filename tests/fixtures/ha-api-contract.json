@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "apiVersion": 1,
   "basePath": "/api/ha/v1",
   "auth": {
@@ -15,6 +15,7 @@
   "scopes": [
     "read",
     "inputs",
+    "loads",
     "control"
   ],
   "endpoints": [
@@ -73,6 +74,11 @@
       "status": 429,
       "code": "rate_limited",
       "client": "honour-retry-after"
+    },
+    {
+      "status": 403,
+      "code": "tls_required",
+      "client": "reauth"
     }
   ],
   "errorProperties": [
@@ -99,7 +105,8 @@
       "gatewayName",
       "firmwareVersion",
       "catalogRevision",
-      "scopes"
+      "scopes",
+      "transport"
     ]
   },
   "catalog": {
@@ -769,6 +776,43 @@
       "path"
     ]
   },
+  "tls": {
+    "defaultPort": 8443,
+    "scopesRequiringTls": [
+      "inputs",
+      "loads",
+      "control"
+    ],
+    "served": "base-path-only",
+    "certificate": {
+      "keyAlgorithm": "ecdsa-p256",
+      "selfSigned": true,
+      "validityYears": 20,
+      "reissue": "only-when-missing-or-unusable"
+    },
+    "fingerprint": {
+      "algorithm": "sha256",
+      "over": "der-certificate",
+      "format": "uppercase-hex-colon-separated",
+      "pattern": "^[0-9A-F]{2}(:[0-9A-F]{2}){31}$"
+    },
+    "transportProperties": [
+      "tls",
+      "tlsPort",
+      "certificateSha256"
+    ],
+    "beatProperty": "homeAssistantTls",
+    "beatProperties": [
+      "port",
+      "certificateSha256"
+    ],
+    "client": {
+      "pin": "certificate-sha256",
+      "firstPin": "confirm-against-cloud",
+      "onMismatch": "reauth",
+      "fallbackToPlainHttp": false
+    }
+  },
   "examples": {
     "token": {
       "token": "ecp_ha_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
@@ -891,7 +935,12 @@
       "catalogRevision": "9c1e4b7a2f05d863",
       "scopes": [
         "read"
-      ]
+      ],
+      "transport": {
+        "tls": true,
+        "tlsPort": 8443,
+        "certificateSha256": "38:89:B9:88:6F:C8:54:B3:9D:E0:39:9E:50:5E:61:3A:C0:B2:95:9E:17:84:9D:09:2D:38:D0:B5:9D:A7:53:BE"
+      }
     },
     "catalog": {
       "apiVersion": 1,
@@ -2090,6 +2139,16 @@
       "body": {
         "code": "unauthorized",
         "message": "Missing or invalid integration token."
+      }
+    },
+    "tls": {
+      "certificateDer": "MIIBwDCCAWegAwIBAgIUdwGnIiTHDoGFMoXw/jr9/ZQnebUwCgYIKoZIzj0EAwIwJTEjMCEGA1UEAwwaRWNvUHVsc2UgZ2F0ZXdheSBndy03ZjNhOWMwHhcNMjYxMDEwMDY0NzI3WhcNNDYxMDEwMDY0NzI3WjAlMSMwIQYDVQQDDBpFY29QdWxzZSBnYXRld2F5IGd3LTdmM2E5YzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJHbvp1ncUJK6BOO5FwkQeYh7143Yunl728ablCHBhny846xTJ2ZKGECz1cBcXrlgcvxigXUVAnXE87yLi3CDKujdTBzMB0GA1UdDgQWBBQRoXk4sZF43rv0YbLjfytc6IkXVDAfBgNVHSMEGDAWgBQRoXk4sZF43rv0YbLjfytc6IkXVDAOBgNVHQ8BAf8EBAMCB4AwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNHADBEAiALZbEz1d1Gsojxnh/77NGOXtkI3ecB8K+qDPlTZHxrLAIgNtJbtLstE7b6dicxJe7JcyND16ArAMqsClfMqOiC4m0=",
+      "certificateSha256": "38:89:B9:88:6F:C8:54:B3:9D:E0:39:9E:50:5E:61:3A:C0:B2:95:9E:17:84:9D:09:2D:38:D0:B5:9D:A7:53:BE",
+      "beat": {
+        "homeAssistantTls": {
+          "port": 8443,
+          "certificateSha256": "38:89:B9:88:6F:C8:54:B3:9D:E0:39:9E:50:5E:61:3A:C0:B2:95:9E:17:84:9D:09:2D:38:D0:B5:9D:A7:53:BE"
+        }
       }
     }
   }

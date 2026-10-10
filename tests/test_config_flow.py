@@ -1,4 +1,7 @@
-"""Config flow: manual setup, zeroconf discovery, reauth (ADR-230 §4, §8)."""
+"""Config flow: manual setup, zeroconf discovery, reauth (ADR-230 §4, §8), over plain HTTP.
+
+The TLS path (the default, #610 S8-TLS) is in test_tls.py; here every form opts out of it.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.ecopulse.const import DOMAIN
+from custom_components.ecopulse.const import CONF_USE_TLS, DOMAIN
 
 from .fake_gateway import FakeGateway
 
@@ -36,7 +39,15 @@ async def _user_flow(hass: HomeAssistant) -> str:
 
 
 def _input(gateway: FakeGateway, token: str | None = None) -> dict:
+    return {**_entry_data(gateway, token), CONF_USE_TLS: False}
+
+
+def _entry_data(gateway: FakeGateway, token: str | None = None) -> dict:
     return {CONF_HOST: gateway.host, CONF_PORT: gateway.port, CONF_TOKEN: token or gateway.token}
+
+
+def _plain(token: str) -> dict:
+    return {CONF_TOKEN: token, CONF_USE_TLS: False}
 
 
 async def test_user_flow_creates_an_entry_keyed_by_gateway_id(
@@ -48,7 +59,7 @@ async def test_user_flow_creates_an_entry_keyed_by_gateway_id(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Haus Nord"
-    assert result["data"] == _input(gateway)
+    assert result["data"] == _entry_data(gateway)
     assert result["result"].unique_id == "gw-7f3a9c"
     assert gateway.requests[0].path == "/api/ha/v1/info"
 
@@ -157,7 +168,7 @@ def _discovery(gateway: FakeGateway, **properties: str) -> ZeroconfServiceInfo:
     )
 
 
-async def test_zeroconf_prefills_the_host_and_asks_only_for_the_token(
+async def test_zeroconf_prefills_the_host_and_asks_for_the_token_and_the_transport(
     hass: HomeAssistant, gateway: FakeGateway
 ) -> None:
     result = await hass.config_entries.flow.async_init(
@@ -165,24 +176,24 @@ async def test_zeroconf_prefills_the_host_and_asks_only_for_the_token(
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "zeroconf_confirm"
-    assert list(result["data_schema"].schema) == [CONF_TOKEN]
+    assert list(result["data_schema"].schema) == [CONF_TOKEN, CONF_USE_TLS, "tls_port"]
 
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_TOKEN: WRONG_TOKEN}
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], _plain(WRONG_TOKEN))
     assert result["errors"] == {"base": "invalid_auth"}
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_TOKEN: gateway.token}
+        result["flow_id"], _plain(gateway.token)
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["result"].unique_id == "gw-7f3a9c"
-    assert result["data"] == _input(gateway)
+    assert result["data"] == _entry_data(gateway)
 
 
-async def test_zeroconf_for_a_configured_gateway_updates_its_address(
+async def test_zeroconf_never_moves_a_plain_http_entry(
     hass: HomeAssistant, gateway: FakeGateway
 ) -> None:
+    # #610 S8-TLS review r1 MED-1: anyone on the LAN can announce a gateway's id; following it
+    # would send the token in the clear to whoever announced. Moving a plain entry is the user's.
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="gw-7f3a9c",
@@ -196,8 +207,9 @@ async def test_zeroconf_for_a_configured_gateway_updates_its_address(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
-    assert entry.data[CONF_HOST] == gateway.host
-    assert entry.data[CONF_PORT] == gateway.port
+    assert entry.data[CONF_HOST] == "10.0.0.99"
+    assert entry.data[CONF_PORT] == 8080
+    assert gateway.requests == []
 
 
 @pytest.mark.parametrize("properties", [{"api": "2"}, {"id": ""}], ids=["api-2-only", "no-id"])
@@ -231,7 +243,7 @@ async def test_zeroconf_token_for_another_gateway_aborts(
     )
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_TOKEN: gateway.token}
+        result["flow_id"], _plain(gateway.token)
     )
 
     assert result["type"] is FlowResultType.ABORT
@@ -254,10 +266,10 @@ async def _start_reauth(hass: HomeAssistant, gateway: FakeGateway) -> tuple[Mock
 async def test_reauth_stores_the_rotated_token(hass: HomeAssistant, gateway: FakeGateway) -> None:
     entry, flow_id = await _start_reauth(hass, gateway)
 
-    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_TOKEN: WRONG_TOKEN})
+    result = await hass.config_entries.flow.async_configure(flow_id, _plain(WRONG_TOKEN))
     assert result["errors"] == {"base": "invalid_auth"}
 
-    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_TOKEN: gateway.token})
+    result = await hass.config_entries.flow.async_configure(flow_id, _plain(gateway.token))
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_TOKEN] == gateway.token
@@ -269,7 +281,7 @@ async def test_reauth_with_a_token_of_another_gateway_aborts(
     entry, flow_id = await _start_reauth(hass, gateway)
     gateway.info["gatewayId"] = "gw-other"
 
-    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_TOKEN: gateway.token})
+    result = await hass.config_entries.flow.async_configure(flow_id, _plain(gateway.token))
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "wrong_gateway"

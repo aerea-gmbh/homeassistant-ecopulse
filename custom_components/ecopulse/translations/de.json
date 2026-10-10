@@ -8,32 +8,58 @@
         "data": {
           "host": "Host",
           "port": "Port",
-          "token": "Integrationstoken"
+          "token": "Integrationstoken",
+          "use_tls": "Verschlüsselte Verbindung (TLS)",
+          "tls_port": "TLS-Port"
         },
         "data_description": {
           "host": "IP-Adresse oder Hostname des Gateways im LAN.",
-          "port": "Port des lokalen Webservers des Gateways (8080, sofern nicht geändert).",
-          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+          "port": "Port des lokalen Webservers des Gateways (8080, sofern nicht geändert). Wird ohne TLS verwendet.",
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways.",
+          "use_tls": "Empfohlen. Nötig für alles, was Home Assistant an EcoPulse schreibt; ohne sie lassen sich Werte nur lesen.",
+          "tls_port": "Port der verschlüsselten Home-Assistant-Schnittstelle des Gateways (8443, sofern nicht geändert; 18443 auf einem NAS)."
         }
       },
       "zeroconf_confirm": {
         "title": "EcoPulse-Gateway gefunden",
         "description": "Gateway {id} unter {host} gefunden. Gib seinen Home-Assistant-Integrationstoken aus der EcoPulse-Web-App ein.",
         "data": {
-          "token": "Integrationstoken"
+          "token": "Integrationstoken",
+          "use_tls": "Verschlüsselte Verbindung (TLS)",
+          "tls_port": "TLS-Port"
         },
         "data_description": {
-          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways.",
+          "use_tls": "Empfohlen. Nötig für alles, was Home Assistant an EcoPulse schreibt; ohne sie lassen sich Werte nur lesen.",
+          "tls_port": "Port der verschlüsselten Home-Assistant-Schnittstelle des Gateways (8443, sofern nicht geändert; 18443 auf einem NAS)."
         }
       },
       "reauth_confirm": {
         "title": "Token für {name} nicht mehr gültig",
-        "description": "Das Gateway hat den Integrationstoken abgelehnt, meist weil er in der EcoPulse-Web-App rotiert wurde. Gib den neuen Token ein.",
+        "description": "Das Gateway hat den Integrationstoken abgelehnt (meist, weil er in der EcoPulse-Web-App rotiert wurde), oder es weist sich mit einem anderen Zertifikat aus als dem, dem Home Assistant vertraut. Gib den Token ein.",
         "data": {
-          "token": "Integrationstoken"
+          "token": "Integrationstoken",
+          "use_tls": "Verschlüsselte Verbindung (TLS)",
+          "tls_port": "TLS-Port"
         },
         "data_description": {
-          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways.",
+          "use_tls": "Empfohlen. Nötig für alles, was Home Assistant an EcoPulse schreibt; ohne sie lassen sich Werte nur lesen.",
+          "tls_port": "Port der verschlüsselten Home-Assistant-Schnittstelle des Gateways (8443, sofern nicht geändert; 18443 auf einem NAS)."
+        }
+      },
+      "tls_confirm": {
+        "title": "Zertifikat des Gateways bestätigen",
+        "description": "Das Gateway unter {host}:{port} weist sich mit einem Zertifikat mit diesem SHA-256-Fingerabdruck aus:\n\n`{fingerprint}`\n\nÖffne in der EcoPulse-Web-App die Home-Assistant-Einstellungen des Gateways und vergleiche ihn mit dem dort angezeigten Fingerabdruck. Bestätige nur, wenn beide genau übereinstimmen. Home Assistant vertraut danach nur diesem Zertifikat. Der Token wurde noch nicht gesendet.",
+        "data": {
+          "fingerprint_matches": "Der Fingerabdruck stimmt mit dem in der EcoPulse-Web-App überein"
+        }
+      },
+      "tls_changed": {
+        "title": "Achtung: Das Gateway weist sich mit einem anderen Zertifikat aus",
+        "description": "Womöglich antwortet ein anderes Gerät anstelle des Gateways unter {host}:{port}: Es weist sich mit einem anderen Zertifikat aus als dem, dem Home Assistant vertraut. Sein SHA-256-Fingerabdruck lautet:\n\n`{fingerprint}`\n\nÖffne in der EcoPulse-Web-App die Home-Assistant-Einstellungen des Gateways. Bestätige nur, wenn der dort angezeigte Fingerabdruck genau dieser ist. Weicht er ab oder zeigt die Web-App keinen an, bestätige nicht: brich ab und prüfe dein Netzwerk.",
+        "data": {
+          "fingerprint_matches": "Der Fingerabdruck stimmt mit dem in der EcoPulse-Web-App überein"
         }
       }
     },
@@ -43,7 +69,10 @@
       "invalid_token_format": "Das ist kein Integrationstoken; er muss mit ecp_ha_ beginnen.",
       "not_enabled": "Home Assistant ist für dieses Gateway nicht aktiviert oder seine Firmware ist zu alt. Aktiviere es in der EcoPulse-Web-App und warte, bis die Konfiguration das Gateway erreicht hat.",
       "rate_limited": "Zu viele Fehlversuche von dieser Adresse. Warte ein paar Minuten und versuche es erneut.",
-      "unknown": "Unerwarteter Fehler."
+      "unknown": "Unerwarteter Fehler.",
+      "cannot_connect_tls": "Keine verschlüsselte Verbindung zum Gateway möglich. Prüfe Host und TLS-Port und ob die Firmware des Gateways sie unterstützt.",
+      "certificate_mismatch": "Das Zertifikat des Gateways passt nicht zum bestätigten Fingerabdruck. Es wurde nichts gesendet. Beginne neu und vergleiche den Fingerabdruck mit der EcoPulse-Web-App.",
+      "fingerprint_not_confirmed": "Bestätige, dass der Fingerabdruck mit dem in der EcoPulse-Web-App übereinstimmt, oder brich ab."
     },
     "abort": {
       "already_configured": "Dieses Gateway ist bereits eingerichtet.",

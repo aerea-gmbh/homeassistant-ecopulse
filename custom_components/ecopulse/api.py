@@ -2,19 +2,36 @@
 
 The token is only ever sent as ``Authorization: Bearer``; it never goes into a URL, a log line
 or an exception message.
+
+With a pinned certificate fingerprint (#610 S8-TLS, ADR-232) every request goes over HTTPS and
+aiohttp checks the SHA-256 of the gateway's certificate before the request is written: a
+different certificate means no request at all, and a pinned client never speaks plain HTTP.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
+import asyncio
+from collections.abc import AsyncIterator, Callable, Mapping
+import contextlib
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+import hashlib
+import re
+import ssl
 from typing import Any
 
 import aiohttp
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN
 from yarl import URL
 
-from .const import API_BASE_PATH, REQUEST_TIMEOUT_SECONDS, STREAM_DEAD_AFTER_SECONDS
+from .const import (
+    API_BASE_PATH,
+    CONF_TLS_FINGERPRINT,
+    CONF_TLS_PORT,
+    FINGERPRINT_PATTERN,
+    REQUEST_TIMEOUT_SECONDS,
+    STREAM_DEAD_AFTER_SECONDS,
+)
 from .models import Catalog, GatewayInfo
 from .sse import SseEvent, SseParser, SseProtocolError
 
@@ -31,6 +48,15 @@ class EcoPulseAuthError(EcoPulseError):
     """401/403: the token is wrong, rotated or lacks the scope (contract action ``reauth``)."""
 
 
+class EcoPulseCertificateMismatchError(EcoPulseAuthError):
+    """The gateway presented another certificate than the pinned one (contract
+    ``tls.client.onMismatch`` = ``reauth``). Nothing was sent; only the user may pin a new one."""
+
+    def __init__(self, seen: str | None) -> None:
+        super().__init__("the gateway's TLS certificate is not the pinned one")
+        self.seen = seen
+
+
 class EcoPulseNotEnabledError(EcoPulseError):
     """404: Home Assistant is not enabled on this gateway, or its firmware is too old
     (contract action ``retry-later``)."""
@@ -45,7 +71,7 @@ class EcoPulseRateLimitedError(EcoPulseError):
 
 
 class EcoPulseApiClient:
-    """One gateway, one token."""
+    """One gateway, one token; pinned to one certificate when ``fingerprint`` is given."""
 
     def __init__(
         self,
@@ -54,16 +80,24 @@ class EcoPulseApiClient:
         port: int,
         token: str,
         *,
-        stream_dead_after: float = STREAM_DEAD_AFTER_SECONDS,
+        fingerprint: str | None = None,
     ) -> None:
         self._session = session
-        self._base = URL.build(scheme="http", host=host, port=port, path=API_BASE_PATH)
+        # The scheme follows the pin and nothing else: no fallback, no upgrade, no redirect.
+        scheme = "https" if fingerprint else "http"
+        self._base = URL.build(scheme=scheme, host=host, port=port, path=API_BASE_PATH)
+        self._ssl: aiohttp.Fingerprint | bool = (
+            aiohttp.Fingerprint(fingerprint_digest(fingerprint)) if fingerprint else True
+        )
         self._headers = {"Authorization": f"Bearer {token}"}
-        self._stream_dead_after = stream_dead_after
 
     @property
     def base_url(self) -> str:
         return str(self._base)
+
+    @property
+    def pinned(self) -> bool:
+        return isinstance(self._ssl, aiohttp.Fingerprint)
 
     async def async_get_info(self) -> GatewayInfo:
         return _parse("info", GatewayInfo.from_dict, await self._get_json("info"))
@@ -78,7 +112,7 @@ class EcoPulseApiClient:
         exactly the contract's "no byte for 45 s = dead" (pings count as bytes).
         """
         timeout = aiohttp.ClientTimeout(
-            total=None, sock_connect=REQUEST_TIMEOUT_SECONDS, sock_read=self._stream_dead_after
+            total=None, sock_connect=REQUEST_TIMEOUT_SECONDS, sock_read=STREAM_DEAD_AFTER_SECONDS
         )
         parser = SseParser()
         try:
@@ -87,11 +121,14 @@ class EcoPulseApiClient:
                 headers={**self._headers, "Accept": "text/event-stream"},
                 timeout=timeout,
                 allow_redirects=False,
+                ssl=self._ssl,
             ) as response:
                 _raise_for_status(response)
                 async for chunk in response.content.iter_any():
                     for event in parser.feed(chunk):
                         yield event
+        except aiohttp.ServerFingerprintMismatch as err:
+            raise _mismatch(err) from err
         except (aiohttp.ClientError, TimeoutError, SseProtocolError) as err:
             raise EcoPulseConnectionError(f"stream failed: {type(err).__name__}") from err
 
@@ -103,14 +140,68 @@ class EcoPulseApiClient:
                 headers=self._headers,
                 timeout=timeout,
                 allow_redirects=False,  # the token only ever goes to the gateway typed in
+                ssl=self._ssl,
             ) as response:
                 _raise_for_status(response)
                 data = await response.json()
+        except aiohttp.ServerFingerprintMismatch as err:
+            raise _mismatch(err) from err
         except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             raise EcoPulseConnectionError(f"GET {path} failed: {type(err).__name__}") from err
         if not isinstance(data, dict):
             raise EcoPulseConnectionError(f"GET {path} returned no JSON object")
         return data
+
+
+def client_for(session: aiohttp.ClientSession, data: Mapping[str, Any]) -> EcoPulseApiClient:
+    """The client of a config entry's data: pinned HTTPS on the TLS port when the entry holds a
+    fingerprint, plain HTTP on the web port only when it never had one."""
+    fingerprint = data.get(CONF_TLS_FINGERPRINT)
+    port = data[CONF_TLS_PORT] if fingerprint else data[CONF_PORT]
+    return EcoPulseApiClient(
+        session, data[CONF_HOST], port, data[CONF_TOKEN], fingerprint=fingerprint
+    )
+
+
+def format_fingerprint(digest: bytes) -> str:
+    """A SHA-256 digest in the contract's format: uppercase hex pairs separated by colons."""
+    return ":".join(f"{byte:02X}" for byte in digest)
+
+
+def fingerprint_digest(fingerprint: str) -> bytes:
+    if not re.fullmatch(FINGERPRINT_PATTERN, fingerprint):
+        raise ValueError("not a certificate fingerprint in the contract format")
+    return bytes.fromhex(fingerprint.replace(":", ""))
+
+
+async def async_fetch_certificate_fingerprint(host: str, port: int, context: ssl.SSLContext) -> str:
+    """The SHA-256 of the certificate the gateway presents, read from the TLS handshake.
+
+    Nothing is sent over the connection: the token goes out only after the user confirmed this
+    fingerprint against the one the EcoPulse web app shows (contract ``tls.client.firstPin``).
+    ``context`` must not verify (the certificate is self-signed; trust is the pin).
+    """
+    try:
+        async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+            _, writer = await asyncio.open_connection(host, port, ssl=context)
+    except (OSError, TimeoutError, ssl.SSLError) as err:
+        raise EcoPulseConnectionError(f"TLS handshake failed: {type(err).__name__}") from err
+    try:
+        ssl_object = writer.get_extra_info("ssl_object")
+        der = ssl_object.getpeercert(binary_form=True) if ssl_object else None
+    finally:
+        writer.close()
+        # The fingerprint is read; how the close went does not matter.
+        with contextlib.suppress(OSError, ssl.SSLError):
+            await writer.wait_closed()
+    if not der:
+        raise EcoPulseConnectionError("the gateway presented no certificate")
+    return format_fingerprint(hashlib.sha256(der).digest())
+
+
+def _mismatch(err: aiohttp.ServerFingerprintMismatch) -> EcoPulseCertificateMismatchError:
+    got = getattr(err, "got", None)
+    return EcoPulseCertificateMismatchError(format_fingerprint(got) if got else None)
 
 
 def _parse[T](path: str, parse: Callable[[dict[str, Any]], T], data: dict[str, Any]) -> T:
@@ -153,9 +244,14 @@ def parse_retry_after(value: str | None) -> float | None:
 __all__ = [
     "EcoPulseApiClient",
     "EcoPulseAuthError",
+    "EcoPulseCertificateMismatchError",
     "EcoPulseConnectionError",
     "EcoPulseError",
     "EcoPulseNotEnabledError",
     "EcoPulseRateLimitedError",
+    "async_fetch_certificate_fingerprint",
+    "client_for",
+    "fingerprint_digest",
+    "format_fingerprint",
     "parse_retry_after",
 ]

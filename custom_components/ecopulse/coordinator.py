@@ -24,6 +24,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from .api import (
     EcoPulseApiClient,
     EcoPulseAuthError,
+    EcoPulseCertificateMismatchError,
     EcoPulseConnectionError,
     EcoPulseNotEnabledError,
     EcoPulseRateLimitedError,
@@ -154,6 +155,15 @@ class EcoPulseStreamCoordinator:
                     async for event in events:
                         if await self._async_handle(event):
                             backoff = float(BACKOFF_INITIAL_SECONDS)
+            except EcoPulseCertificateMismatchError as err:
+                # Contract tls.client.onMismatch: nothing was sent, no fallback to plain HTTP.
+                _LOGGER.warning(
+                    "The gateway presented another TLS certificate (SHA-256 %s) than the pinned "
+                    "one; reauthentication required to confirm it against the EcoPulse web app",
+                    err.seen,
+                )
+                self._entry.async_start_reauth(self.hass)
+                return
             except EcoPulseAuthError:
                 _LOGGER.warning("The gateway rejected the token; reauthentication required")
                 self._entry.async_start_reauth(self.hass)

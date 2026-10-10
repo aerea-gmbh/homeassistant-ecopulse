@@ -8,32 +8,58 @@
         "data": {
           "host": "Host",
           "port": "Port",
-          "token": "Integration token"
+          "token": "Integration token",
+          "use_tls": "Encrypted connection (TLS)",
+          "tls_port": "TLS port"
         },
         "data_description": {
           "host": "IP address or host name of the gateway on your LAN.",
-          "port": "Port of the gateway's local web server (8080 unless changed).",
-          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+          "port": "Port of the gateway's local web server (8080 unless changed). Used without TLS.",
+          "token": "Starts with ecp_ha_. This is not the gateway's web password.",
+          "use_tls": "Recommended. Required for anything Home Assistant writes to EcoPulse; without it, values can only be read.",
+          "tls_port": "Port of the gateway's encrypted Home Assistant API (8443 unless changed; 18443 on a NAS)."
         }
       },
       "zeroconf_confirm": {
         "title": "EcoPulse gateway found",
         "description": "Found gateway {id} at {host}. Enter its Home Assistant integration token from the EcoPulse web app.",
         "data": {
-          "token": "Integration token"
+          "token": "Integration token",
+          "use_tls": "Encrypted connection (TLS)",
+          "tls_port": "TLS port"
         },
         "data_description": {
-          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+          "token": "Starts with ecp_ha_. This is not the gateway's web password.",
+          "use_tls": "Recommended. Required for anything Home Assistant writes to EcoPulse; without it, values can only be read.",
+          "tls_port": "Port of the gateway's encrypted Home Assistant API (8443 unless changed; 18443 on a NAS)."
         }
       },
       "reauth_confirm": {
         "title": "Token for {name} no longer valid",
-        "description": "The gateway rejected the integration token, usually because it was rotated in the EcoPulse web app. Enter the new token.",
+        "description": "The gateway rejected the integration token (usually because it was rotated in the EcoPulse web app), or it presented another certificate than the one Home Assistant trusts. Enter the token.",
         "data": {
-          "token": "Integration token"
+          "token": "Integration token",
+          "use_tls": "Encrypted connection (TLS)",
+          "tls_port": "TLS port"
         },
         "data_description": {
-          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+          "token": "Starts with ecp_ha_. This is not the gateway's web password.",
+          "use_tls": "Recommended. Required for anything Home Assistant writes to EcoPulse; without it, values can only be read.",
+          "tls_port": "Port of the gateway's encrypted Home Assistant API (8443 unless changed; 18443 on a NAS)."
+        }
+      },
+      "tls_confirm": {
+        "title": "Confirm the gateway's certificate",
+        "description": "The gateway at {host}:{port} presents a certificate with this SHA-256 fingerprint:\n\n`{fingerprint}`\n\nOpen the gateway's Home Assistant settings in the EcoPulse web app and compare it with the fingerprint shown there. Confirm only if both match exactly. Home Assistant will then trust only this certificate. The token has not been sent yet.",
+        "data": {
+          "fingerprint_matches": "The fingerprint matches the one in the EcoPulse web app"
+        }
+      },
+      "tls_changed": {
+        "title": "Warning: the gateway presents another certificate",
+        "description": "Another device may be answering in place of the gateway at {host}:{port}: it presents a different certificate than the one Home Assistant trusts. Its SHA-256 fingerprint is:\n\n`{fingerprint}`\n\nOpen the gateway's Home Assistant settings in the EcoPulse web app. Confirm only if the fingerprint shown there is exactly this one. If it differs, or the web app shows none, do not confirm: cancel and check your network.",
+        "data": {
+          "fingerprint_matches": "The fingerprint matches the one in the EcoPulse web app"
         }
       }
     },
@@ -43,7 +69,10 @@
       "invalid_token_format": "This is not an integration token; it must start with ecp_ha_.",
       "not_enabled": "Home Assistant is not enabled for this gateway, or its firmware is too old. Enable it in the EcoPulse web app and wait for the configuration to reach the gateway.",
       "rate_limited": "Too many failed attempts from this address. Wait a few minutes and try again.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "cannot_connect_tls": "Cannot open an encrypted connection to the gateway. Check the host and the TLS port, and that the gateway's firmware supports it.",
+      "certificate_mismatch": "The gateway's certificate does not match the confirmed fingerprint. Nothing was sent. Start again and compare the fingerprint with the EcoPulse web app.",
+      "fingerprint_not_confirmed": "Confirm that the fingerprint matches the one in the EcoPulse web app, or cancel."
     },
     "abort": {
       "already_configured": "This gateway is already configured.",

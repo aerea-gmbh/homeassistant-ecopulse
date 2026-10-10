@@ -21,9 +21,14 @@ class GatewayInfo:
     catalog_revision: str
     supported_api_versions: tuple[int, ...]
     scopes: tuple[str, ...]
+    # Schema 4 (#610 S8-TLS): where the gateway serves the API over TLS; None on an older
+    # gateway or while it serves no TLS port.
+    tls_port: int | None = None
+    tls_fingerprint: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> GatewayInfo:
+        transport = data.get("transport") or {}
         return cls(
             gateway_id=str(data["gatewayId"]),
             gateway_name=str(data.get("gatewayName") or data["gatewayId"]),
@@ -31,6 +36,8 @@ class GatewayInfo:
             catalog_revision=str(data["catalogRevision"]),
             supported_api_versions=tuple(data.get("supportedApiVersions") or ()),
             scopes=tuple(data.get("scopes") or ()),
+            tls_port=transport.get("tlsPort"),
+            tls_fingerprint=transport.get("certificateSha256"),
         )
 
 
