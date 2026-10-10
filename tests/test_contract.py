@@ -83,13 +83,40 @@ def test_the_forecast_sensors_are_the_contract_s_forecast_entities(
     section = contract["gatewayEntities"]
     forecast = {e["key"]: e for e in section["entities"] if e["cloudFact"] == "forecast"}
     assert frozenset(forecast) == const.FORECAST_ENTITY_KEYS
-    assert const.TRANSLATED_GATEWAY_ENTITY_KEYS == (
-        const.PROBLEM_SENSOR_KEYS | const.FORECAST_ENTITY_KEYS | const.ALARM_ENTITY_KEYS
-    )
+    assert const.FORECAST_ENTITY_KEYS <= const.TRANSLATED_GATEWAY_ENTITY_KEYS
     cloud_attributes = [a["key"] for a in section["cloudAttributes"]]
     for language in ("en", "de"):
         names = json.loads((TRANSLATIONS_PATH / f"{language}.json").read_text(encoding="utf-8"))
         for key, definition in forecast.items():
+            assert definition["platform"] == "sensor"
+            entry = names["entity"]["sensor"][key]
+            assert entry["name"], (language, key)
+            expected = cloud_attributes + [a["key"] for a in definition["attributes"]]
+            assert sorted(entry["state_attributes"]) == sorted(expected), (language, key)
+            assert all(v["name"] for v in entry["state_attributes"].values()), (language, key)
+
+
+def test_the_plan_sensors_are_the_contract_s_plan_entities(contract: dict[str, Any]) -> None:
+    # Schema 3 (#626 S7.3, ADR-231 §12): every sensor fed by "battery.plan" or "heatpump.plan" is
+    # named by the integration's translations, with a name for each of its attributes in every
+    # language; the translated keys are exactly the problem, forecast, plan and alarm sensors.
+    section = contract["gatewayEntities"]
+    plans = {
+        e["key"]: e
+        for e in section["entities"]
+        if e["cloudFact"] in ("batteryPlan", "heatpumpPlan")
+    }
+    assert frozenset(plans) == const.PLAN_ENTITY_KEYS
+    assert const.TRANSLATED_GATEWAY_ENTITY_KEYS == (
+        const.PROBLEM_SENSOR_KEYS
+        | const.FORECAST_ENTITY_KEYS
+        | const.PLAN_ENTITY_KEYS
+        | const.ALARM_ENTITY_KEYS
+    )
+    cloud_attributes = [a["key"] for a in section["cloudAttributes"]]
+    for language in ("en", "de"):
+        names = json.loads((TRANSLATIONS_PATH / f"{language}.json").read_text(encoding="utf-8"))
+        for key, definition in plans.items():
             assert definition["platform"] == "sensor"
             entry = names["entity"]["sensor"][key]
             assert entry["name"], (language, key)

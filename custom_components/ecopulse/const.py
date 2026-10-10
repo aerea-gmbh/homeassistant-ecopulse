@@ -64,6 +64,11 @@ FORECAST_ENTITY_KEYS: Final = frozenset(
         "price_now",
     }
 )
+# The optimizers' plan sensors (schema 3, #626 S7.3, ADR-231): fed by the cloud's "battery.plan"
+# and "heatpump.plan" pushes, listed by the gateway while it holds a plan of its optimizer.
+PLAN_ENTITY_KEYS: Final = frozenset(
+    {"battery_plan_state", "battery_plan_soc", "heatpump_plan_state"}
+)
 # The alarm sensors (schema 3, #626 S7.4, ADR-231 §9): fed by the cloud's "alerts.state" push.
 # "alarm" is named by the translations; a rule's sensor ("alarm_{ruleId}", contract family) is
 # named after the rule, and takes only its attribute names from the translations.
@@ -72,7 +77,7 @@ ALARM_ENTITY_KEYS: Final = frozenset({ALARM_KEY})
 ALARM_RULE_KEY_PREFIX: Final = "alarm_"
 ALARM_RULE_TRANSLATION_KEY: Final = "alarm_rule"
 TRANSLATED_GATEWAY_ENTITY_KEYS: Final = (
-    PROBLEM_SENSOR_KEYS | FORECAST_ENTITY_KEYS | ALARM_ENTITY_KEYS
+    PROBLEM_SENSOR_KEYS | FORECAST_ENTITY_KEYS | PLAN_ENTITY_KEYS | ALARM_ENTITY_KEYS
 )
 
 # Contract "stream.attributes" (schema 3, #626): a value's attributes; these keys stay out of
