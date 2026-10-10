@@ -231,6 +231,9 @@ do not confirm it.
   certificate: it never falls back to plain HTTP. Without it the connection is plain HTTP on your LAN, as the
   gateway's web interface, and someone who can sniff your LAN can read the token and with it the values; that is
   why the gateway accepts anything that writes only over the encrypted connection.
+- A discovery announcement never moves a configured gateway on its own (anyone on the LAN can announce a gateway's
+  id): an entry with the encrypted connection follows a new address only if that address presents the trusted
+  certificate; an entry without it keeps its address until you change it.
 - Repeated wrong tokens lock the client out for a while (HTTP 429). The setup form refuses anything that does not
   look like an integration token before it contacts the gateway.
 

@@ -56,8 +56,8 @@
         }
       },
       "tls_changed": {
-        "title": "Das Zertifikat des Gateways hat sich geändert",
-        "description": "Das Gateway unter {host}:{port} weist sich jetzt mit einem anderen Zertifikat aus als dem, dem Home Assistant vertraut. Sein SHA-256-Fingerabdruck lautet:\n\n`{fingerprint}`\n\nDas passiert, wenn das Gateway ein neues Zertifikat erstellen musste. Es kann aber auch bedeuten, dass ein anderes Gerät anstelle des Gateways antwortet. Vergleiche den Fingerabdruck mit dem in den Home-Assistant-Einstellungen des Gateways in der EcoPulse-Web-App und bestätige nur, wenn beide genau übereinstimmen.",
+        "title": "Achtung: Das Gateway weist sich mit einem anderen Zertifikat aus",
+        "description": "Womöglich antwortet ein anderes Gerät anstelle des Gateways unter {host}:{port}: Es weist sich mit einem anderen Zertifikat aus als dem, dem Home Assistant vertraut. Sein SHA-256-Fingerabdruck lautet:\n\n`{fingerprint}`\n\nÖffne in der EcoPulse-Web-App die Home-Assistant-Einstellungen des Gateways. Bestätige nur, wenn der dort angezeigte Fingerabdruck genau dieser ist. Weicht er ab oder zeigt die Web-App keinen an, bestätige nicht: brich ab und prüfe dein Netzwerk.",
         "data": {
           "fingerprint_matches": "Der Fingerabdruck stimmt mit dem in der EcoPulse-Web-App überein"
         }

@@ -9,13 +9,17 @@ plain HTTP again.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Generator
+from ipaddress import ip_address
+import json
+from pathlib import Path
 from unittest.mock import patch
 
 import aiohttp
-from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
+from homeassistant.config_entries import SOURCE_USER, SOURCE_ZEROCONF, ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.util.ssl import get_default_no_verify_context
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -401,6 +405,86 @@ async def test_reauth_of_a_plain_http_entry_can_switch_it_to_tls(
     assert entry.data[CONF_PORT] == 8080
 
 
+# -- zeroconf against a pinned entry (review r1 MED-1) ------------------------------------------
+
+
+def _announcement(gateway: FakeGateway, http_port: int = 8080) -> ZeroconfServiceInfo:
+    return ZeroconfServiceInfo(
+        ip_address=ip_address(gateway.host),
+        ip_addresses=[ip_address(gateway.host)],
+        port=http_port,
+        hostname="ecopulse-gw.local.",
+        type="_ecopulse._tcp.local.",
+        name="ecopulse-gw._ecopulse._tcp.local.",
+        properties={"id": "gw-7f3a9c", "api": "1", "path": "/api/ha/v1"},
+    )
+
+
+def _pinned_elsewhere(tls_port: int, fingerprint: str) -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="gw-7f3a9c",
+        data={
+            CONF_HOST: "10.0.0.99",
+            CONF_PORT: 8080,
+            CONF_TOKEN: WRONG_TOKEN,
+            CONF_TLS_PORT: tls_port,
+            CONF_TLS_FINGERPRINT: fingerprint,
+        },
+    )
+
+
+@pytest.mark.usefixtures("no_setup")
+async def test_zeroconf_moves_a_pinned_entry_only_to_an_address_presenting_the_pinned_cert(
+    hass: HomeAssistant, tls_gateway: FakeGateway
+) -> None:
+    entry = _pinned_elsewhere(tls_gateway.port, tls_gateway.fingerprint)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_ZEROCONF}, data=_announcement(tls_gateway, 18080)
+    )
+
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_HOST] == tls_gateway.host
+    assert entry.data[CONF_PORT] == 18080
+    assert entry.data[CONF_TLS_FINGERPRINT] == tls_gateway.fingerprint
+    assert tls_gateway.requests == [], "the check is the handshake, no token is sent"
+
+
+@pytest.mark.usefixtures("no_setup")
+async def test_zeroconf_leaves_a_pinned_entry_alone_when_the_announcer_presents_another_certificate(
+    hass: HomeAssistant, tls_gateway: FakeGateway
+) -> None:
+    entry = _pinned_elsewhere(tls_gateway.port, OTHER_FINGERPRINT)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_ZEROCONF}, data=_announcement(tls_gateway)
+    )
+
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_HOST] == "10.0.0.99"
+    assert entry.data[CONF_TLS_FINGERPRINT] == OTHER_FINGERPRINT
+    assert tls_gateway.requests == []
+
+
+@pytest.mark.usefixtures("no_setup")
+async def test_zeroconf_leaves_a_pinned_entry_alone_when_the_announcer_speaks_no_tls(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    entry = _pinned_elsewhere(gateway.port, OTHER_FINGERPRINT)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_ZEROCONF}, data=_announcement(gateway)
+    )
+
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_HOST] == "10.0.0.99"
+    assert gateway.requests == []
+
+
 # -- setup and the stream ------------------------------------------------------------------------
 
 
@@ -449,3 +533,17 @@ async def test_a_certificate_change_while_streaming_starts_reauth_and_stops_reco
 
     assert len(tls_gateway.requests) == requests_before, "no request to the new certificate"
     await hass.config_entries.async_unload(entry.entry_id)
+
+
+def test_the_changed_certificate_prompt_warns_first_and_offers_no_benign_reason() -> None:
+    # Review r1 MED-1: a spoofed announcement or a MITM ends in this prompt; it must not talk
+    # the user into confirming. The warning comes before the fingerprint, no reassurance after.
+    component = Path(__file__).parents[1] / "custom_components" / "ecopulse"
+    for path, warning, benign in (
+        (component / "translations" / "en.json", "another device", "this happens when"),
+        (component / "translations" / "de.json", "anderes gerät", "das passiert, wenn"),
+    ):
+        step = json.loads(path.read_text(encoding="utf-8"))["config"]["step"]["tls_changed"]
+        text = step["description"].lower()
+        assert warning in text.split("{fingerprint}")[0], path.name
+        assert benign not in text, path.name

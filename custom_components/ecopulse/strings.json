@@ -56,8 +56,8 @@
         }
       },
       "tls_changed": {
-        "title": "The gateway's certificate has changed",
-        "description": "The gateway at {host}:{port} now presents a different certificate than the one Home Assistant trusts. Its SHA-256 fingerprint is:\n\n`{fingerprint}`\n\nThis happens when the gateway had to create a new certificate. It can also mean that another device is answering in place of the gateway. Compare the fingerprint with the one in the gateway's Home Assistant settings in the EcoPulse web app and confirm only if both match exactly.",
+        "title": "Warning: the gateway presents another certificate",
+        "description": "Another device may be answering in place of the gateway at {host}:{port}: it presents a different certificate than the one Home Assistant trusts. Its SHA-256 fingerprint is:\n\n`{fingerprint}`\n\nOpen the gateway's Home Assistant settings in the EcoPulse web app. Confirm only if the fingerprint shown there is exactly this one. If it differs, or the web app shows none, do not confirm: cancel and check your network.",
         "data": {
           "fingerprint_matches": "The fingerprint matches the one in the EcoPulse web app"
         }

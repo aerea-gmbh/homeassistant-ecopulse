@@ -176,7 +176,8 @@ class EcoPulseConfigFlow(ConfigFlow, domain=DOMAIN):
         self._host = str(discovery_info.ip_address)
         self._port = discovery_info.port or DEFAULT_PORT
         await self.async_set_unique_id(gateway_id)
-        self._abort_if_unique_id_configured(updates={CONF_HOST: self._host, CONF_PORT: self._port})
+        if entry := self.hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, gateway_id):
+            return await self._async_follow_announcement(entry)
         # TXT records carry no name (ADR-230 §8), so the id is what the discovery card shows.
         self.context["title_placeholders"] = {"name": gateway_id}
         return await self.async_step_zeroconf_confirm()
@@ -222,6 +223,33 @@ class EcoPulseConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Reauth of a pinned entry whose gateway now presents another certificate."""
         return await self._async_confirm_pin("tls_changed", user_input)
+
+    async def _async_follow_announcement(self, entry: ConfigEntry) -> ConfigFlowResult:
+        """Review r1 MED-1: anyone on the LAN can announce a gateway's id, so an announcement moves
+        a configured entry only when the new address proves to be the gateway: it presents the
+        pinned certificate on the entry's TLS port (read from the handshake, nothing sent). A
+        plain-HTTP entry never follows: the reload would send its token in the clear to the
+        announcer."""
+        assert self._host is not None
+        pinned = entry.data.get(CONF_TLS_FINGERPRINT)
+        if pinned and entry.data[CONF_HOST] != self._host:
+            try:
+                seen = await async_fetch_certificate_fingerprint(
+                    self._host, entry.data[CONF_TLS_PORT], get_default_no_verify_context()
+                )
+            except EcoPulseConnectionError:
+                seen = None
+            if seen == pinned:
+                self._abort_if_unique_id_configured(
+                    updates={CONF_HOST: self._host, CONF_PORT: self._port}
+                )
+            _LOGGER.warning(
+                "Ignoring an announcement of gateway %s at %s: it does not present the pinned "
+                "certificate",
+                entry.unique_id,
+                self._host,
+            )
+        return self.async_abort(reason="already_configured")
 
     # -- the shared paths -------------------------------------------------------------------
 
