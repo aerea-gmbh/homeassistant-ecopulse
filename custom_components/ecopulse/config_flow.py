@@ -26,7 +26,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN
 from homeassistant.core import callback
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     EntitySelector,
@@ -76,6 +75,7 @@ from .const import (
     ZEROCONF_TXT_API,
     ZEROCONF_TXT_ID,
 )
+from .inputs import ecopulse_entity_ids
 from .models import CatalogInput, GatewayInfo
 
 _LOGGER = logging.getLogger(__name__)
@@ -462,12 +462,8 @@ class EcoPulseOptionsFlow(OptionsFlow):
             }
             return self.async_create_entry(data={**self.config_entry.options, CONF_INPUTS: mapping})
 
-        own = [
-            entry.entity_id
-            for entry in er.async_entries_for_config_entry(
-                er.async_get(self.hass), self.config_entry.entry_id
-            )
-        ]
+        # Review r1 LOW-5: every EcoPulse entity, also another gateway's entry's.
+        own = sorted(ecopulse_entity_ids(self.hass))
         current = self.config_entry.options.get(CONF_INPUTS) or {}
         fields: dict[Any, Any] = {}
         suggested: dict[str, str] = {}

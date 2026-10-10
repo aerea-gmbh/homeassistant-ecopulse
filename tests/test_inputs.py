@@ -110,6 +110,10 @@ def _issue(hass: HomeAssistant, issue: str, entry: MockConfigEntry) -> ir.IssueE
         ("on", {}, BOOLEAN_SLOT, (True, None)),
         ("off", {}, BOOLEAN_SLOT, (False, None)),
         ("unavailable", {}, BOOLEAN_SLOT, (None, None)),
+        # Review r1 LOW-2: float() parses these; none is a value, never NaN/Infinity on the wire.
+        ("nan", {}, NUMBER_SLOT, (None, None)),
+        ("inf", {"unit_of_measurement": "°C"}, NUMBER_SLOT, (None, None)),
+        ("-Infinity", {}, NUMBER_SLOT, (None, None)),
     ],
 )
 def test_a_state_is_converted_into_the_slot_s_type_and_unit(
@@ -118,6 +122,12 @@ def test_a_state_is_converted_into_the_slot_s_type_and_unit(
     converted = convert(State("sensor.x", state, attributes), slot)
 
     assert (converted.value, converted.unit_error) == expected
+
+
+def test_a_conversion_that_overflows_is_no_value() -> None:
+    watts = CatalogInput("m.p", "u", "Power", "M", "W", "number", 60)
+
+    assert convert(State("sensor.p", "1e306", {"unit_of_measurement": "GW"}), watts).value is None
 
 
 def test_kilowatts_become_watts_and_a_unit_on_a_unit_less_slot_is_refused() -> None:
@@ -312,6 +322,57 @@ async def test_the_inputs_step_maps_entities_to_the_catalog_s_slots_and_hides_ec
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_INPUTS] == {TEMPERATURE_SLOT: "sensor.outdoor"}
+
+
+def _other_gateways_entity(hass: HomeAssistant) -> str:
+    """An entity of a second EcoPulse entry (another gateway): EcoPulse's own value as well."""
+    other = MockConfigEntry(domain=DOMAIN, title="Haus Süd", unique_id="gw-other")
+    other.add_to_hass(hass)
+    entry = er.async_get(hass).async_get_or_create(
+        "sensor", DOMAIN, "gw-other:power", config_entry=other, suggested_object_id="haus_sud_power"
+    )
+    hass.states.async_set(entry.entity_id, "20", {"unit_of_measurement": "°C"})
+    return entry.entity_id
+
+
+# Review r1 LOW-5: no EcoPulse entity is offered, also not one of another gateway's entry
+# (feeding EcoPulse its own value).
+@pytest.mark.usefixtures("fast_backoff")
+async def test_the_inputs_step_hides_every_ecopulse_entity_also_of_another_gateway(
+    hass: HomeAssistant, tls_gateway: FakeGateway
+) -> None:
+    entry = await _load(hass, tls_gateway, _entry(tls_gateway, options={}))
+    other = _other_gateways_entity(hass)
+    menu = await hass.config_entries.options.async_init(entry.entry_id)
+
+    form = await hass.config_entries.options.async_configure(
+        menu["flow_id"], {"next_step_id": "inputs"}
+    )
+
+    for key in form["data_schema"].schema:
+        assert other in form["data_schema"].schema[key].config["exclude_entities"]
+
+
+# Review r1 LOW-5: a mapping that points at an EcoPulse entity (set before it was one, or by
+# hand) is skipped at runtime
+# with a repair issue; the other slots go on.
+@pytest.mark.usefixtures("fast_backoff")
+async def test_a_mapped_ecopulse_entity_is_never_posted_and_raises_a_repair_issue(
+    hass: HomeAssistant, tls_gateway: FakeGateway
+) -> None:
+    other = _other_gateways_entity(hass)
+    entry = _entry(
+        tls_gateway,
+        options={CONF_INPUTS: {TEMPERATURE_SLOT: other, RAINING_SLOT: "binary_sensor.rain"}},
+    )
+    await _load(hass, tls_gateway, entry)
+
+    await tls_gateway.wait_for_posts(1)
+
+    assert tls_gateway.posted_inputs[0] == {"inputs": [{"key": RAINING, "value": True}]}
+    issue = _issue(hass, "input_loop", entry)
+    assert issue is not None
+    assert issue.translation_placeholders == {"name": "Haus Nord", "entities": other}
 
 
 @pytest.mark.usefixtures("fast_backoff")

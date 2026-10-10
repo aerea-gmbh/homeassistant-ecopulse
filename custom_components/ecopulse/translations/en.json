@@ -461,6 +461,10 @@
     "input_unit": {
       "title": "A value for EcoPulse cannot be converted",
       "description": "The entity {entity} reports its value in {unit}, which cannot be converted into {slot_unit}, the unit of the EcoPulse input \"{slot}\". Its value is not sent. Map an entity with a convertible unit in the integration's options."
+    },
+    "input_loop": {
+      "title": "A Home Assistant input feeds EcoPulse its own value",
+      "description": "The inputs of the gateway {name} are mapped to EcoPulse entities ({entities}). EcoPulse would get its own value back, so these are not sent. Map other entities in the integration's options."
     }
   }
 }

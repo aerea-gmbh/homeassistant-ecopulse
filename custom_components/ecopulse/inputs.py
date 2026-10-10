@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 import inspect
 import logging
+import math
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -36,7 +37,7 @@ from homeassistant.core import (
     State,
     callback,
 )
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
@@ -58,6 +59,7 @@ from .const import (
     INPUT_DATA_TYPE_BOOLEAN,
     INPUTS_MAX_PER_REQUEST,
     INPUTS_REPOST_SECONDS,
+    ISSUE_INPUT_LOOP,
     ISSUE_INPUT_UNIT,
     ISSUE_INPUTS_NEED_TLS,
     ISSUE_INPUTS_REFUSED,
@@ -96,6 +98,10 @@ def convert(state: State | None, slot: CatalogInput) -> Converted:
         number = float(state.state)
     except ValueError:
         return Converted(None)
+    if not math.isfinite(number):
+        # Review r1 LOW-2: "nan"/"inf" parse; neither is a value, and NaN on the wire would fail
+        # the whole batch.
+        return Converted(None)
     return _in_unit(number, state.attributes.get(ATTR_UNIT_OF_MEASUREMENT), slot.unit)
 
 
@@ -107,8 +113,18 @@ def _in_unit(number: float, source_unit: str | None, slot_unit: str | None) -> C
         return Converted(None, source_unit)
     for converter in _CONVERTERS:
         if source_unit in converter.VALID_UNITS and slot_unit in converter.VALID_UNITS:
-            return Converted(converter.convert(number, source_unit, slot_unit))
+            converted = converter.convert(number, source_unit, slot_unit)
+            return Converted(converted if math.isfinite(converted) else None)
     return Converted(None, source_unit)
+
+
+def ecopulse_entity_ids(hass: HomeAssistant) -> set[str]:
+    """Every EcoPulse entity, of any gateway's entry: feeding EcoPulse its own value is a loop."""
+    return {
+        entry.entity_id
+        for entry in er.async_get(hass).entities.values()
+        if entry.platform == DOMAIN
+    }
 
 
 def mapping_of(options: Mapping[str, Any], slots: tuple[CatalogInput, ...]) -> dict[str, str]:
@@ -155,6 +171,7 @@ class EcoPulseInputForwarder:
         # apply live and leave the stream alone.
         self._entry.async_on_unload(self._entry.add_update_listener(self._async_options_updated))
         self._entry.async_on_unload(self._async_stop)
+        self._drop_ecopulse_entities()
         if not self._mapping:
             self._delete_issue(ISSUE_INPUTS_NEED_TLS)
             return
@@ -174,6 +191,20 @@ class EcoPulseInputForwarder:
             )
         )
         self._schedule(set(self._mapping))
+
+    @callback
+    def _drop_ecopulse_entities(self) -> None:
+        """Review r1 LOW-5: the options flow offers no EcoPulse entity, but a mapping may predate
+        it or be edited by hand."""
+        own = ecopulse_entity_ids(self.hass)
+        looped = sorted({entity_id for entity_id in self._mapping.values() if entity_id in own})
+        self._mapping = {
+            key: entity_id for key, entity_id in self._mapping.items() if entity_id not in own
+        }
+        if looped:
+            self._create_issue(ISSUE_INPUT_LOOP, {"entities": ", ".join(looped)})
+        else:
+            self._delete_issue(ISSUE_INPUT_LOOP)
 
     async def _async_options_updated(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         if mapping_of(entry.options, tuple(self._slots.values())) != self._mapping:

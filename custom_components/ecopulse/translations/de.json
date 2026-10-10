@@ -461,6 +461,10 @@
     "input_unit": {
       "title": "Ein Wert für EcoPulse lässt sich nicht umrechnen",
       "description": "Die Entität {entity} liefert ihren Wert in {unit}, und das lässt sich nicht in {slot_unit} umrechnen, die Einheit des EcoPulse-Eingangs „{slot}“. Ihr Wert wird nicht gesendet. Ordne in den Optionen der Integration eine Entität mit umrechenbarer Einheit zu."
+    },
+    "input_loop": {
+      "title": "Ein Home-Assistant-Eingang speist EcoPulse mit dem eigenen Wert",
+      "description": "Den Eingängen des Gateways {name} sind EcoPulse-Entitäten zugeordnet ({entities}). EcoPulse bekäme seinen eigenen Wert zurück, deshalb werden sie nicht gesendet. Ordne in den Optionen der Integration andere Entitäten zu."
     }
   }
 }

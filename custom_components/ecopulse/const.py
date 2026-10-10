@@ -49,6 +49,7 @@ INPUT_DOMAINS: Final = {
 ISSUE_INPUTS_REFUSED: Final = "inputs_refused"
 ISSUE_INPUTS_NEED_TLS: Final = "inputs_need_tls"
 ISSUE_INPUT_UNIT: Final = "input_unit"
+ISSUE_INPUT_LOOP: Final = "input_loop"
 
 ZEROCONF_SERVICE_TYPE: Final = "_ecopulse._tcp.local."
 ZEROCONF_TXT_ID: Final = "id"
