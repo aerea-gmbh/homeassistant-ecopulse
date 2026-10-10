@@ -29,7 +29,10 @@ from custom_components.ecopulse.const import (
     CONF_TLS_PORT,
     DOMAIN,
 )
+from custom_components.ecopulse.coordinator import EcoPulseStreamCoordinator
 from custom_components.ecopulse.loads import NOT_MAPPED, error_text
+from custom_components.ecopulse.models import Catalog
+from custom_components.ecopulse.sse import SseEvent
 
 from .conftest import wait_until
 from .fake_gateway import FakeGateway
@@ -175,6 +178,25 @@ async def test_a_plain_http_entry_never_acts_on_a_command_and_raises_a_repair_is
     assert hass.states.get("input_boolean.pool_pump").state == "off"
     assert gateway.acks == []
     assert _issue(hass, "loads_need_tls", entry) is not None
+
+
+# The coordinator's own rule, behind the switcher's (which registers no handler without a pin): a
+# command read from a connection without the pinned certificate never reaches a handler; the
+# positive half: the same command from a pinned connection does.
+@pytest.mark.parametrize(("pinned", "handled"), [(False, 0), (True, 1)])
+async def test_the_coordinator_hands_a_command_on_only_from_the_pinned_connection(
+    hass: HomeAssistant, contract: dict[str, Any], pinned: bool, handled: int
+) -> None:
+    client = type("Client", (), {"pinned": pinned})()
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="gw-7f3a9c")
+    catalog = Catalog.from_dict(contract["examples"]["catalog"])
+    coordinator = EcoPulseStreamCoordinator(hass, entry, client, catalog)  # type: ignore[arg-type]
+    received: list[dict[str, Any]] = []
+    coordinator.async_set_command_handler(received.append)
+
+    await coordinator._async_handle(SseEvent("command", _command(POOL_PUMP, "on")))
+
+    assert len(received) == handled
 
 
 # ---- refusals ------------------------------------------------------------------------------------
