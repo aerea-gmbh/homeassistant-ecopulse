@@ -24,6 +24,7 @@ from .api import (
 )
 from .const import BACKOFF_INITIAL_SECONDS, DOMAIN, GATEWAY_MODEL, MANUFACTURER
 from .coordinator import EcoPulseStreamCoordinator, wait_after_failure
+from .inputs import EcoPulseInputForwarder
 from .models import Catalog
 from .surplus import surplus_available_unique_id, surplus_source
 
@@ -36,6 +37,7 @@ PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 class EcoPulseRuntimeData:
     client: EcoPulseApiClient
     coordinator: EcoPulseStreamCoordinator
+    inputs: EcoPulseInputForwarder
 
 
 type EcoPulseConfigEntry = ConfigEntry[EcoPulseRuntimeData]
@@ -78,9 +80,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> 
         _LOGGER.warning("The gateway serves no devices; keeping all existing entities")
 
     coordinator = EcoPulseStreamCoordinator(hass, entry, client, catalog)
-    entry.runtime_data = EcoPulseRuntimeData(client, coordinator)
+    # #624: the catalog's input slots, fed from the entities the options map to them.
+    inputs = EcoPulseInputForwarder(hass, entry, client, catalog.inputs)
+    entry.runtime_data = EcoPulseRuntimeData(client, coordinator, inputs)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     coordinator.async_start(initial_wait)
+    inputs.async_start()
     return True
 
 

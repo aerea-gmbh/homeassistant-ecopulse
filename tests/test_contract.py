@@ -18,11 +18,11 @@ from typing import Any
 import pytest
 
 from custom_components.ecopulse import api, const
-from custom_components.ecopulse.models import GatewayInfo
+from custom_components.ecopulse.models import Catalog, GatewayInfo
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "908d30ee6e17777eda35b1315274b5a9702afd96550d16b94eb6a64323e72dc4"
+CONTRACT_SHA256 = "bd790d82518472499cd1cb0fca3dbd0801c562a124fa856007247db8f4be9506"
 COMPONENT_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse"
 MANIFEST_PATH = COMPONENT_PATH / "manifest.json"
 STRINGS_PATH = COMPONENT_PATH / "strings.json"
@@ -34,7 +34,7 @@ def test_fixture_is_the_pinned_contract() -> None:
 
 
 def test_schema_and_api_version_are_the_ones_this_plugin_speaks(contract: dict[str, Any]) -> None:
-    assert contract["schemaVersion"] == 4
+    assert contract["schemaVersion"] == 5
     assert contract["apiVersion"] == const.API_VERSION
     assert contract["basePath"] == const.API_BASE_PATH
 
@@ -269,7 +269,47 @@ _ERROR_FOR_ACTION = {
     "reauth": api.EcoPulseAuthError,
     "retry-later": api.EcoPulseNotEnabledError,
     "honour-retry-after": api.EcoPulseRateLimitedError,
+    "drop-request": api.EcoPulseInvalidRequestError,
 }
+
+
+def test_inputs_constants_match(contract: dict[str, Any]) -> None:
+    # Schema 5 (#624, ADR-232 S5): what the forwarder posts and how often, and what may feed a slot.
+    inputs = contract["inputs"]
+    assert inputs["repostSeconds"] == const.INPUTS_REPOST_SECONDS
+    assert inputs["maxItemsPerRequest"] == const.INPUTS_MAX_PER_REQUEST
+    assert inputs["dataTypes"] == [const.INPUT_DATA_TYPE_NUMBER, const.INPUT_DATA_TYPE_BOOLEAN]
+    assert set(const.INPUT_DOMAINS) == set(inputs["dataTypes"])
+    assert inputs["repostSeconds"] < inputs["defaultStaleAfterSeconds"]
+    assert {"method": "POST", "path": "/" + const.INPUTS_PATH, "scope": "inputs"} in contract[
+        "endpoints"
+    ]
+    assert "inputs" in const.SCOPES_REQUIRING_TLS
+    assert contract["client"]["routeErrors"] == [
+        {
+            "method": "POST",
+            "path": "/" + const.INPUTS_PATH,
+            "status": 403,
+            "client": const.CLIENT_ACTION_DISABLE_ROUTE,
+        }
+    ]
+    assert {e["code"]: e["client"] for e in contract["errors"]}[
+        const.ERROR_INVALID_REQUEST
+    ] == const.CLIENT_ACTION_DROP_REQUEST
+
+
+def test_the_catalog_s_input_slots_are_read(contract: dict[str, Any]) -> None:
+    catalog = Catalog.from_dict(contract["examples"]["catalog"])
+    expected = contract["examples"]["catalog"]["inputs"]
+
+    assert [
+        (i.key, i.unique_id, i.unit, i.data_type, i.stale_after_seconds) for i in catalog.inputs
+    ] == [
+        (i["key"], i["uniqueId"], i["unit"], i["dataType"], i["staleAfterSeconds"])
+        for i in expected
+    ]
+    older = {k: v for k, v in contract["examples"]["catalog"].items() if k != "inputs"}
+    assert Catalog.from_dict(older).inputs == ()
 
 
 @pytest.mark.parametrize(

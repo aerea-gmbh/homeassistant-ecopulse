@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Callable, Mapping
 import contextlib
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 import hashlib
@@ -29,6 +30,7 @@ from .const import (
     CONF_TLS_FINGERPRINT,
     CONF_TLS_PORT,
     FINGERPRINT_PATTERN,
+    INPUTS_PATH,
     REQUEST_TIMEOUT_SECONDS,
     STREAM_DEAD_AFTER_SECONDS,
 )
@@ -60,6 +62,29 @@ class EcoPulseCertificateMismatchError(EcoPulseAuthError):
 class EcoPulseNotEnabledError(EcoPulseError):
     """404: Home Assistant is not enabled on this gateway, or its firmware is too old
     (contract action ``retry-later``)."""
+
+
+class EcoPulseInvalidRequestError(EcoPulseError):
+    """400: the gateway could not read the request (contract action ``drop-request``)."""
+
+
+class EcoPulseInputsRefusedError(EcoPulseError):
+    """403 on ``POST /inputs`` (contract ``client.routeErrors``: ``disable-route``): the token may
+    not post values (the toggle in the EcoPulse web app is off) or the request came in the clear.
+    Deliberately no :class:`EcoPulseAuthError`: reading goes on, the entry is not reauthenticated.
+    """
+
+    def __init__(self, code: str | None) -> None:
+        super().__init__(f"the gateway refused the inputs ({code})")
+        self.code = code
+
+
+@dataclass(frozen=True, slots=True)
+class InputsResult:
+    """A 202 of ``POST /inputs``: every key answered, accepted or rejected with a contract code."""
+
+    accepted: tuple[str, ...]
+    rejected: tuple[tuple[str, str], ...]
 
 
 class EcoPulseRateLimitedError(EcoPulseError):
@@ -104,6 +129,30 @@ class EcoPulseApiClient:
 
     async def async_get_catalog(self) -> Catalog:
         return _parse("catalog", Catalog.from_dict, await self._get_json("catalog"))
+
+    async def async_post_inputs(self, items: list[dict[str, Any]]) -> InputsResult:
+        """``POST /inputs`` (schema 5, #624). A 403 is the route's
+        (:class:`EcoPulseInputsRefusedError`), never a reauth; the token goes only over the pinned
+        connection the caller checked for."""
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
+        try:
+            async with self._session.post(
+                self._base / INPUTS_PATH,
+                headers=self._headers,
+                json={"inputs": items},
+                timeout=timeout,
+                allow_redirects=False,
+                ssl=self._ssl,
+            ) as response:
+                if response.status == 403:
+                    raise EcoPulseInputsRefusedError(await _error_code(response))
+                _raise_for_status(response, success=202)
+                data = await response.json()
+        except aiohttp.ServerFingerprintMismatch as err:
+            raise _mismatch(err) from err
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            raise EcoPulseConnectionError(f"POST inputs failed: {type(err).__name__}") from err
+        return _parse("inputs", _inputs_result, data if isinstance(data, dict) else {})
 
     async def async_stream(self) -> AsyncIterator[SseEvent]:
         """Yield events until the stream ends; raise on silence, errors or auth failure.
@@ -211,10 +260,27 @@ def _parse[T](path: str, parse: Callable[[dict[str, Any]], T], data: dict[str, A
         raise EcoPulseConnectionError(f"GET {path} returned a malformed body") from err
 
 
-def _raise_for_status(response: aiohttp.ClientResponse) -> None:
+def _inputs_result(data: dict[str, Any]) -> InputsResult:
+    return InputsResult(
+        accepted=tuple(str(key) for key in data["accepted"]),
+        rejected=tuple((str(r["key"]), str(r["code"])) for r in data["rejected"]),
+    )
+
+
+async def _error_code(response: aiohttp.ClientResponse) -> str | None:
+    try:
+        body = await response.json()
+    except (aiohttp.ClientError, ValueError):
+        return None
+    return body.get("code") if isinstance(body, dict) else None
+
+
+def _raise_for_status(response: aiohttp.ClientResponse, success: int = 200) -> None:
     status = response.status
-    if status == 200:
+    if status == success:
         return
+    if status == 400:
+        raise EcoPulseInvalidRequestError("gateway answered 400")
     if status in (401, 403):
         raise EcoPulseAuthError(f"gateway answered {status}")
     if status == 404:
@@ -247,8 +313,11 @@ __all__ = [
     "EcoPulseCertificateMismatchError",
     "EcoPulseConnectionError",
     "EcoPulseError",
+    "EcoPulseInputsRefusedError",
+    "EcoPulseInvalidRequestError",
     "EcoPulseNotEnabledError",
     "EcoPulseRateLimitedError",
+    "InputsResult",
     "async_fetch_certificate_fingerprint",
     "client_for",
     "fingerprint_digest",

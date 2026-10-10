@@ -28,6 +28,28 @@ CONF_FINGERPRINT_MATCHES: Final = "fingerprint_matches"
 SCOPES_REQUIRING_TLS: Final = frozenset({"inputs", "loads", "control"})
 FINGERPRINT_PATTERN: Final = r"^[0-9A-F]{2}(:[0-9A-F]{2}){31}$"
 ERROR_TLS_REQUIRED: Final = "tls_required"
+ERROR_INVALID_REQUEST: Final = "invalid_request"
+
+# Contract "inputs" (schema 5, #624, ADR-232 S5): Home Assistant's values for the gateway's input
+# slots. The options map each slot's unique id (the signal Guid) to a Home Assistant entity id.
+CONF_INPUTS: Final = "inputs"
+INPUTS_PATH: Final = "inputs"
+INPUT_DATA_TYPE_NUMBER: Final = "number"
+INPUT_DATA_TYPE_BOOLEAN: Final = "boolean"
+INPUTS_MAX_PER_REQUEST: Final = 100
+INPUTS_REPOST_SECONDS: Final = 10
+# Contract "client.routeErrors": a 403 on POST /inputs disables that route only, never the entry.
+CLIENT_ACTION_DISABLE_ROUTE: Final = "disable-route"
+CLIENT_ACTION_DROP_REQUEST: Final = "drop-request"
+# What Home Assistant entities may feed a slot of each data type (the options flow's filter).
+INPUT_DOMAINS: Final = {
+    INPUT_DATA_TYPE_NUMBER: ["sensor", "number", "input_number"],
+    INPUT_DATA_TYPE_BOOLEAN: ["binary_sensor", "input_boolean", "switch"],
+}
+ISSUE_INPUTS_REFUSED: Final = "inputs_refused"
+ISSUE_INPUTS_NEED_TLS: Final = "inputs_need_tls"
+ISSUE_INPUT_UNIT: Final = "input_unit"
+ISSUE_INPUT_LOOP: Final = "input_loop"
 
 ZEROCONF_SERVICE_TYPE: Final = "_ecopulse._tcp.local."
 ZEROCONF_TXT_ID: Final = "id"

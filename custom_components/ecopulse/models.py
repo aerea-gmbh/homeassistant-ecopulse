@@ -92,6 +92,32 @@ class CatalogDevice:
 
 
 @dataclass(frozen=True, slots=True)
+class CatalogInput:
+    """One input slot (schema 5, #624): ``key`` is what a post names, ``unique_id`` (the signal
+    Guid) what the options map to a Home Assistant entity; it survives renames."""
+
+    key: str
+    unique_id: str
+    name: str
+    device_name: str
+    unit: str | None
+    data_type: str
+    stale_after_seconds: int
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CatalogInput:
+        return cls(
+            key=str(data["key"]),
+            unique_id=str(data["uniqueId"]),
+            name=str(data["name"]),
+            device_name=str(data.get("deviceName") or ""),
+            unit=data.get("unit"),
+            data_type=str(data["dataType"]),
+            stale_after_seconds=int(data["staleAfterSeconds"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class Catalog:
     """``GET /catalog``."""
 
@@ -103,6 +129,8 @@ class Catalog:
     # The gateway's own entities (schema 2, #623): on the gateway device, in no device of the
     # availability event. Absent before schema 2, so a schema 1 gateway simply has none.
     gateway_entities: tuple[CatalogEntity, ...]
+    # The input slots (schema 5, #624): absent before schema 5 and while the token lacks "inputs".
+    inputs: tuple[CatalogInput, ...] = ()
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Catalog:
@@ -116,6 +144,7 @@ class Catalog:
             gateway_entities=tuple(
                 CatalogEntity.from_dict(e) for e in gateway.get("entities") or ()
             ),
+            inputs=tuple(CatalogInput.from_dict(i) for i in data.get("inputs") or ()),
         )
 
     @classmethod

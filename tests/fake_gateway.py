@@ -3,6 +3,10 @@
 It mirrors the edge's order of checks (ADR-230 §4): disabled -> 404, blocked -> 429, no or
 wrong token -> 401, forced status (e.g. 403) -> that status, unknown path -> 404.
 
+``POST /inputs`` (schema 5, #624) records every body and answers like the edge: 202 with the
+items whose key is a catalog slot accepted and the rest rejected ``unknown_input``, or
+``inputs_status`` (with the contract's code) when a test forces one.
+
 With ``tls=True`` it serves HTTPS with a self-signed ECDSA P-256 certificate of its own, like
 the gateway's TLS port (#610 S8-TLS); ``fingerprint`` is that certificate's SHA-256 in the
 contract format, and ``/info`` names it.
@@ -56,6 +60,9 @@ class FakeGateway:
     requests: list[RecordedRequest] = field(default_factory=list)
     stream_connections: int = 0
     fingerprint: str | None = None
+    posted_inputs: list[dict[str, Any]] = field(default_factory=list)
+    inputs_status: int | None = None
+    inputs_retry_after: int | None = None
 
     def __post_init__(self) -> None:
         examples = self.contract["examples"]
@@ -66,6 +73,7 @@ class FakeGateway:
         self._queues: list[asyncio.Queue[str | None]] = []
         self._server: TestServer | None = None
         self._stream_opened = asyncio.Event()
+        self._posted = asyncio.Event()
         self._closing = False
         self._streams_ready = 0
 
@@ -74,6 +82,7 @@ class FakeGateway:
     async def start(self, port: int | None = None) -> None:
         app = web.Application()
         app.router.add_get("/api/ha/v1/{tail:.*}", self._handle)
+        app.router.add_post("/api/ha/v1/{tail:.*}", self._handle)
         self._server = TestServer(app, host="127.0.0.1", port=port)
         context = self._new_certificate() if self.tls else None
         await self._server.start_server(ssl=context)
@@ -197,6 +206,10 @@ class FakeGateway:
         if self.redirect_to is not None:
             raise web.HTTPFound(self.redirect_to)
         tail = request.match_info["tail"]
+        if request.method == "POST":
+            return (
+                await self._inputs(request) if tail == "inputs" else _error(404, "not_found", "x")
+            )
         if tail == "info":
             return web.json_response(self.info)
         if tail == "catalog":
@@ -204,6 +217,36 @@ class FakeGateway:
         if tail == "stream":
             return await self._stream(request)
         return _error(404, "not_found", "Not found.")
+
+    async def wait_for_posts(self, count: int, timeout: float = 5) -> None:
+        async with asyncio.timeout(timeout):
+            while len(self.posted_inputs) < count:
+                self._posted.clear()
+                await self._posted.wait()
+
+    async def _inputs(self, request: web.Request) -> web.Response:
+        body = await request.json()
+        self.posted_inputs.append(body)
+        self._posted.set()
+        if self.inputs_status is not None:
+            code = {400: "invalid_request", 403: "insufficient_scope", 429: "rate_limited"}
+            headers = (
+                {"Retry-After": str(self.inputs_retry_after)} if self.inputs_retry_after else None
+            )
+            return _error(self.inputs_status, code.get(self.inputs_status, "x"), "x", headers)
+        slots = {slot["key"] for slot in self.catalog.get("inputs", [])}
+        items = body["inputs"]
+        return web.json_response(
+            {
+                "accepted": [item["key"] for item in items if item["key"] in slots],
+                "rejected": [
+                    {"key": item["key"], "code": "unknown_input"}
+                    for item in items
+                    if item["key"] not in slots
+                ],
+            },
+            status=202,
+        )
 
     async def _stream(self, request: web.Request) -> web.StreamResponse:
         # Registered before the first await, so drop_streams() always reaches this stream.

@@ -40,7 +40,8 @@ entities for your own automations:
   automation waiting for "off" still fires. Its state survives a Home Assistant restart.
 
 Set threshold (default 500 W), hysteresis (default 100 W), on-delay and off-delay (default 120 s each) under
-*Settings > Devices & services > EcoPulse > Configure*. Changes apply immediately, without a restart.
+*Settings > Devices & services > EcoPulse > Configure > Surplus available*. Changes apply immediately, without a
+restart.
 
 Example: run the pool pump on surplus.
 
@@ -139,6 +140,29 @@ one state, each with its `start`, `state` and (battery) the `soc` planned at its
 runs out. A gateway shows one plan per kind, that of its enabled optimizer with the lowest id; the states and names
 are translated (English, German).
 
+## Values from Home Assistant into EcoPulse
+
+Home Assistant can send values EcoPulse has no device for, for example an outdoor temperature from your weather
+station or a meter Home Assistant reads. EcoPulse stores and uses them like its own measurements: in the history,
+the live view and as input of its assistants.
+
+1. In the EcoPulse web app, add a **Home Assistant** driver to the gateway and the devices to feed on it (each
+   numeric or on/off value of such a device becomes an *input*), and turn on **Values from Home Assistant** on the
+   gateway's Home Assistant card.
+2. Reload the EcoPulse entry in Home Assistant, then *Configure > Values from Home Assistant*: pick the entity that
+   feeds each input (sensors, numbers and input numbers for a number; binary sensors, input booleans and switches for
+   on/off). EcoPulse's own entities are not offered.
+
+The integration sends every mapped value on each change and every 10 seconds (EcoPulse stamps its own receive time,
+so a value that is not re-sent goes stale). Values are converted into the input's unit (°F into °C, kW into W);
+an entity whose unit cannot be converted is not sent and a **repair issue** names it. `unavailable` and `unknown`
+are sent as "no value". An input without a value for a minute counts as missing in EcoPulse: it shows a driver
+problem there, and its assistants stop using the value; there is no substitute value.
+
+Values are sent **only over the encrypted connection**. An entry without it sends nothing and shows a repair issue.
+When the gateway refuses the values (the toggle in the web app was turned off), the integration stops sending them,
+shows a repair issue and keeps reading; reload the entry after turning the toggle on again.
+
 ## Alarms
 
 Your EcoPulse alarm rules show up on the gateway device as problem sensors, so an automation can react to an alarm
@@ -200,7 +224,8 @@ do not confirm it.
 
 ## Security notes
 
-- The token can only **read** the values of this one gateway. It cannot change the gateway's configuration and
+- The token can only **read** the values of this one gateway, plus, if you turn on *Values from Home Assistant* in
+  the EcoPulse web app, send values into the inputs EcoPulse defined. It cannot change the gateway's configuration and
   does not open its web interface.
 - With the encrypted connection the token and the values travel over TLS, and the entry is pinned to the gateway's
   certificate: it never falls back to plain HTTP. Without it the connection is plain HTTP on your LAN, as the
