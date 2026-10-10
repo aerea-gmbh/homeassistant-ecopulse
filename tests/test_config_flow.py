@@ -189,9 +189,11 @@ async def test_zeroconf_prefills_the_host_and_asks_for_the_token_and_the_transpo
     assert result["data"] == _entry_data(gateway)
 
 
-async def test_zeroconf_for_a_configured_gateway_updates_its_address(
+async def test_zeroconf_never_moves_a_plain_http_entry(
     hass: HomeAssistant, gateway: FakeGateway
 ) -> None:
+    # #610 S8-TLS review r1 MED-1: anyone on the LAN can announce a gateway's id; following it
+    # would send the token in the clear to whoever announced. Moving a plain entry is the user's.
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="gw-7f3a9c",
@@ -205,8 +207,9 @@ async def test_zeroconf_for_a_configured_gateway_updates_its_address(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
-    assert entry.data[CONF_HOST] == gateway.host
-    assert entry.data[CONF_PORT] == gateway.port
+    assert entry.data[CONF_HOST] == "10.0.0.99"
+    assert entry.data[CONF_PORT] == 8080
+    assert gateway.requests == []
 
 
 @pytest.mark.parametrize("properties", [{"api": "2"}, {"id": ""}], ids=["api-2-only", "no-id"])
