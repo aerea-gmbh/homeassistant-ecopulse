@@ -85,6 +85,13 @@
   "options": {
     "step": {
       "init": {
+        "title": "EcoPulse options",
+        "menu_options": {
+          "surplus": "Surplus available",
+          "inputs": "Values from Home Assistant"
+        }
+      },
+      "surplus": {
         "title": "Surplus available",
         "description": "When the binary sensor \"Surplus available\" turns on and off, based on the gateway's solar excess power. It turns on once the excess has been at least the threshold for the whole on-delay, and off once it has been below the threshold minus the hysteresis for the whole off-delay. A missing value counts as no surplus. Changes apply immediately.",
         "data": {
@@ -99,7 +106,14 @@
           "surplus_on_delay_s": "How long the excess must stay at or above the threshold before the sensor turns on.",
           "surplus_off_delay_s": "How long the excess must stay below the threshold minus the hysteresis (or be unknown) before the sensor turns off."
         }
+      },
+      "inputs": {
+        "title": "Values from Home Assistant",
+        "description": "The gateway offers {count} inputs: values Home Assistant may send to EcoPulse (for example an outdoor temperature). Pick the entity that feeds each one; leave an input empty to send nothing for it. Values are converted into the input's unit and sent on every change and every 10 seconds over the encrypted connection; an input without a value for a minute counts as missing in EcoPulse. EcoPulse's own entities are not offered."
       }
+    },
+    "abort": {
+      "no_inputs": "The gateway offers no inputs. In the EcoPulse web app, add the gateway's Home Assistant driver with the devices to feed, and turn on \"Values from Home Assistant\" on the gateway's Home Assistant card; then reload this integration."
     }
   },
   "entity": {
@@ -433,6 +447,20 @@
           "forced": "Boost forced"
         }
       }
+    }
+  },
+  "issues": {
+    "inputs_refused": {
+      "title": "EcoPulse no longer accepts values from Home Assistant",
+      "description": "The gateway {name} refused the values Home Assistant sends ({code}). Either \"Values from Home Assistant\" was turned off on the gateway's Home Assistant card in the EcoPulse web app, or the connection is not encrypted. Reading values goes on. Turn it on again (or set up the encrypted connection), then reload this integration."
+    },
+    "inputs_need_tls": {
+      "title": "Values for EcoPulse need the encrypted connection",
+      "description": "Entities are mapped to the inputs of the gateway {name}, but this integration connects without encryption, and the gateway accepts values only over its encrypted connection. Nothing is sent. Reconfigure the integration with the encrypted connection (reauthenticate and turn on TLS)."
+    },
+    "input_unit": {
+      "title": "A value for EcoPulse cannot be converted",
+      "description": "The entity {entity} reports its value in {unit}, which cannot be converted into {slot_unit}, the unit of the EcoPulse input \"{slot}\". Its value is not sent. Map an entity with a convertible unit in the integration's options."
     }
   }
 }

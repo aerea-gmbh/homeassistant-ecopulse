@@ -85,6 +85,13 @@
   "options": {
     "step": {
       "init": {
+        "title": "EcoPulse-Optionen",
+        "menu_options": {
+          "surplus": "Überschuss verfügbar",
+          "inputs": "Werte aus Home Assistant"
+        }
+      },
+      "surplus": {
         "title": "Überschuss verfügbar",
         "description": "Wann der Binärsensor „Überschuss verfügbar“ ein- und ausschaltet, abhängig vom PV-Überschuss des Gateways. Er schaltet ein, sobald der Überschuss die ganze Einschaltverzögerung lang mindestens die Schwelle erreicht hat, und aus, sobald er die ganze Ausschaltverzögerung lang unter der Schwelle minus Hysterese lag. Ein fehlender Wert zählt als kein Überschuss. Änderungen gelten sofort.",
         "data": {
@@ -99,7 +106,14 @@
           "surplus_on_delay_s": "Wie lange der Überschuss mindestens auf der Schwelle bleiben muss, bevor der Sensor einschaltet.",
           "surplus_off_delay_s": "Wie lange der Überschuss unter der Schwelle minus Hysterese liegen (oder unbekannt sein) muss, bevor der Sensor ausschaltet."
         }
+      },
+      "inputs": {
+        "title": "Werte aus Home Assistant",
+        "description": "Das Gateway bietet {count} Eingänge an: Werte, die Home Assistant an EcoPulse senden darf (zum Beispiel eine Außentemperatur). Wähle für jeden die Entität, die ihn speist; ein leerer Eingang bekommt nichts. Werte werden in die Einheit des Eingangs umgerechnet und bei jeder Änderung sowie alle 10 Sekunden über die verschlüsselte Verbindung gesendet; ein Eingang ohne Wert seit einer Minute gilt in EcoPulse als fehlend. Die eigenen Entitäten von EcoPulse werden nicht angeboten."
       }
+    },
+    "abort": {
+      "no_inputs": "Das Gateway bietet keine Eingänge an. Lege in der EcoPulse-Web-App den Home-Assistant-Treiber des Gateways mit den zu speisenden Geräten an und schalte auf der Home-Assistant-Karte des Gateways „Werte aus Home Assistant“ ein; lade danach diese Integration neu."
     }
   },
   "entity": {
@@ -433,6 +447,20 @@
           "forced": "Anhebung erzwungen"
         }
       }
+    }
+  },
+  "issues": {
+    "inputs_refused": {
+      "title": "EcoPulse nimmt keine Werte aus Home Assistant mehr an",
+      "description": "Das Gateway {name} lehnt die Werte ab, die Home Assistant sendet ({code}). Entweder wurde „Werte aus Home Assistant“ auf der Home-Assistant-Karte des Gateways in der EcoPulse-Web-App ausgeschaltet, oder die Verbindung ist nicht verschlüsselt. Das Lesen läuft weiter. Schalte es wieder ein (oder richte die verschlüsselte Verbindung ein) und lade diese Integration neu."
+    },
+    "inputs_need_tls": {
+      "title": "Werte für EcoPulse brauchen die verschlüsselte Verbindung",
+      "description": "Den Eingängen des Gateways {name} sind Entitäten zugeordnet, aber diese Integration verbindet sich unverschlüsselt, und das Gateway nimmt Werte nur über seine verschlüsselte Verbindung an. Es wird nichts gesendet. Richte die Integration mit der verschlüsselten Verbindung neu ein (erneut anmelden und TLS einschalten)."
+    },
+    "input_unit": {
+      "title": "Ein Wert für EcoPulse lässt sich nicht umrechnen",
+      "description": "Die Entität {entity} liefert ihren Wert in {unit}, und das lässt sich nicht in {slot_unit} umrechnen, die Einheit des EcoPulse-Eingangs „{slot}“. Ihr Wert wird nicht gesendet. Ordne in den Optionen der Integration eine Entität mit umrechenbarer Einheit zu."
     }
   }
 }

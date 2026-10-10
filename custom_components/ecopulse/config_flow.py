@@ -4,8 +4,10 @@
 With TLS (the default, #610 S8-TLS, ADR-232) the entry pins the gateway's certificate: its
 SHA-256 is read from the handshake and confirmed by the user against the EcoPulse web app
 before the token is sent, and a pinned entry never goes back to plain HTTP.
-The options flow holds the settings of "Surplus available" (#623); they apply live, the
-binary sensor listens for entry updates, so saving them does not reconnect the stream.
+The options flow is a menu (#624): the settings of "Surplus available" (#623; they apply live,
+the binary sensor listens for entry updates, so saving them does not reconnect the stream) and the
+inputs, which map a Home Assistant entity to each input slot of the gateway's catalog (keyed by
+the slot's unique id; a changed mapping reloads the entry).
 """
 
 from __future__ import annotations
@@ -24,8 +26,11 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN
 from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -49,6 +54,7 @@ from .api import (
 from .const import (
     API_VERSION,
     CONF_FINGERPRINT_MATCHES,
+    CONF_INPUTS,
     CONF_SURPLUS_HYSTERESIS,
     CONF_SURPLUS_OFF_DELAY,
     CONF_SURPLUS_ON_DELAY,
@@ -63,13 +69,14 @@ from .const import (
     DEFAULT_SURPLUS_THRESHOLD_W,
     DEFAULT_TLS_PORT,
     DOMAIN,
+    INPUT_DOMAINS,
     MAX_SURPLUS_DELAY_SECONDS,
     MAX_SURPLUS_POWER_W,
     TOKEN_PREFIX,
     ZEROCONF_TXT_API,
     ZEROCONF_TXT_ID,
 )
-from .models import GatewayInfo
+from .models import CatalogInput, GatewayInfo
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -394,12 +401,70 @@ def _checked_token(raw: str) -> str:
 
 
 class EcoPulseOptionsFlow(OptionsFlow):
+    def __init__(self) -> None:
+        # The inputs form's field labels (readable, unique) -> the slot's unique id.
+        self._slot_by_label: dict[str, str] = {}
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_show_menu(step_id="init", menu_options=["surplus", "inputs"])
+
+    async def async_step_surplus(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            return self.async_create_entry(data={**self.config_entry.options, **user_input})
         return self.async_show_form(
-            step_id="init",
+            step_id="surplus",
             data_schema=self.add_suggested_values_to_schema(
                 _OPTIONS_SCHEMA, {**_OPTION_DEFAULTS, **self.config_entry.options}
             ),
         )
+
+    async def async_step_inputs(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """One entity picker per input slot of the loaded catalog (#624). EcoPulse's own entities
+        are left out: feeding the gateway its own value back would be a loop."""
+        slots = self._slots()
+        if not slots:
+            return self.async_abort(reason="no_inputs")
+        if user_input is not None:
+            mapping = {
+                self._slot_by_label[label]: entity_id
+                for label, entity_id in user_input.items()
+                if label in self._slot_by_label and entity_id
+            }
+            return self.async_create_entry(data={**self.config_entry.options, CONF_INPUTS: mapping})
+
+        own = [
+            entry.entity_id
+            for entry in er.async_entries_for_config_entry(
+                er.async_get(self.hass), self.config_entry.entry_id
+            )
+        ]
+        current = self.config_entry.options.get(CONF_INPUTS) or {}
+        fields: dict[Any, Any] = {}
+        suggested: dict[str, str] = {}
+        self._slot_by_label = {}
+        for slot in slots:
+            label = _slot_label(slot, self._slot_by_label)
+            self._slot_by_label[label] = slot.unique_id
+            fields[vol.Optional(label)] = EntitySelector(
+                EntitySelectorConfig(domain=INPUT_DOMAINS[slot.data_type], exclude_entities=own)
+            )
+            if current.get(slot.unique_id):
+                suggested[label] = current[slot.unique_id]
+        return self.async_show_form(
+            step_id="inputs",
+            data_schema=self.add_suggested_values_to_schema(vol.Schema(fields), suggested),
+            description_placeholders={"count": str(len(slots))},
+        )
+
+    def _slots(self) -> tuple[CatalogInput, ...]:
+        runtime = getattr(self.config_entry, "runtime_data", None)
+        return runtime.coordinator.catalog.inputs if runtime is not None else ()
+
+
+def _slot_label(slot: CatalogInput, taken: Mapping[str, str]) -> str:
+    """``Weather: Outdoor temperature (°C)``; the slot key is added when two would read alike."""
+    unit = f" ({slot.unit})" if slot.unit else ""
+    label = f"{slot.device_name}: {slot.name}{unit}" if slot.device_name else f"{slot.name}{unit}"
+    return f"{label} [{slot.key}]" if label in taken else label

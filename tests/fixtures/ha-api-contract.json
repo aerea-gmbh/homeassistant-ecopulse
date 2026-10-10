@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "apiVersion": 1,
   "basePath": "/api/ha/v1",
   "auth": {
@@ -33,16 +33,15 @@
       "method": "GET",
       "path": "/stream",
       "scope": "read"
+    },
+    {
+      "method": "POST",
+      "path": "/inputs",
+      "scope": "inputs"
     }
   ],
   "reserved": {
     "endpoints": [
-      {
-        "method": "POST",
-        "path": "/inputs",
-        "scope": "inputs",
-        "slice": "S5"
-      },
       {
         "method": "POST",
         "path": "/control",
@@ -79,6 +78,11 @@
       "status": 403,
       "code": "tls_required",
       "client": "reauth"
+    },
+    {
+      "status": 400,
+      "code": "invalid_request",
+      "client": "drop-request"
     }
   ],
   "errorProperties": [
@@ -89,13 +93,23 @@
     "actions": [
       "reauth",
       "retry-later",
-      "honour-retry-after"
+      "honour-retry-after",
+      "drop-request",
+      "disable-route"
     ],
     "retryLaterSeconds": 300,
     "backoffInitialSeconds": 1,
     "backoffMaxSeconds": 60,
     "onSnapshotRevisionMismatch": "refetch",
-    "onUnknownValueId": "ignore"
+    "onUnknownValueId": "ignore",
+    "routeErrors": [
+      {
+        "method": "POST",
+        "path": "/inputs",
+        "status": 403,
+        "client": "disable-route"
+      }
+    ]
   },
   "info": {
     "properties": [
@@ -114,7 +128,8 @@
       "apiVersion",
       "catalogRevision",
       "gateway",
-      "devices"
+      "devices",
+      "inputs"
     ],
     "gatewayProperties": [
       "id",
@@ -737,7 +752,8 @@
       "enabled",
       "gatewayName",
       "token",
-      "devices"
+      "devices",
+      "inputs"
     ],
     "tokenProperties": [
       "hash",
@@ -813,6 +829,74 @@
       "fallbackToPlainHttp": false
     }
   },
+  "inputs": {
+    "driverType": "home-assistant",
+    "keyTemplate": "{edgeEntityId}.{datapointKey}",
+    "dataTypes": [
+      "number",
+      "boolean"
+    ],
+    "requestProperties": [
+      "inputs"
+    ],
+    "itemProperties": [
+      "key",
+      "value",
+      "unit"
+    ],
+    "optionalItemProperties": [
+      "unit"
+    ],
+    "maxItemsPerRequest": 100,
+    "maxBodyBytes": 32768,
+    "nullValue": "no-sample",
+    "timestamp": "edge-receive-time",
+    "responseStatus": 202,
+    "responseProperties": [
+      "accepted",
+      "rejected"
+    ],
+    "rejectedProperties": [
+      "key",
+      "code"
+    ],
+    "rejectCodes": [
+      "unknown_input",
+      "type_mismatch",
+      "unit_mismatch",
+      "not_finite",
+      "not_running"
+    ],
+    "postRateLimit": {
+      "requests": 5,
+      "windowSeconds": 1
+    },
+    "repostSeconds": 10,
+    "defaultStaleAfterSeconds": 60,
+    "onStale": "driver-fault-no-sample",
+    "catalogProperties": [
+      "key",
+      "uniqueId",
+      "name",
+      "deviceName",
+      "unit",
+      "dataType",
+      "staleAfterSeconds"
+    ],
+    "nullableCatalogProperties": [
+      "unit"
+    ],
+    "blockProperties": [
+      "driverId",
+      "key",
+      "uniqueId",
+      "name",
+      "deviceName",
+      "unit",
+      "dataType",
+      "staleAfterSeconds"
+    ]
+  },
   "examples": {
     "token": {
       "token": "ecp_ha_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
@@ -826,7 +910,8 @@
           "hash": "e81483dd1b0e7b23e1d904d63e63f9371229b5d2a1440d0bdcda220c7c7a3ca6",
           "algorithm": "sha256",
           "scopes": [
-            "read"
+            "read",
+            "inputs"
           ]
         },
         "devices": [
@@ -921,6 +1006,27 @@
               }
             ]
           }
+        ],
+        "inputs": [
+          {
+            "driverId": "home-assistant",
+            "key": "weather.outdoorTemperature",
+            "uniqueId": "6a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+            "name": "Outdoor temperature",
+            "deviceName": "Weather",
+            "unit": "°C",
+            "dataType": "number",
+            "staleAfterSeconds": 60
+          },
+          {
+            "driverId": "home-assistant",
+            "key": "weather.raining",
+            "uniqueId": "7b3c4d5e-6f70-4b8c-9d0e-1f2a3b4c5d6e",
+            "name": "Raining",
+            "deviceName": "Weather",
+            "dataType": "boolean",
+            "staleAfterSeconds": 60
+          }
         ]
       }
     },
@@ -934,7 +1040,8 @@
       "firmwareVersion": "2026.10.1",
       "catalogRevision": "9c1e4b7a2f05d863",
       "scopes": [
-        "read"
+        "read",
+        "inputs"
       ],
       "transport": {
         "tls": true,
@@ -1273,6 +1380,26 @@
               "enabledByDefault": true
             }
           ]
+        }
+      ],
+      "inputs": [
+        {
+          "key": "weather.outdoorTemperature",
+          "uniqueId": "6a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "name": "Outdoor temperature",
+          "deviceName": "Weather",
+          "unit": "°C",
+          "dataType": "number",
+          "staleAfterSeconds": 60
+        },
+        {
+          "key": "weather.raining",
+          "uniqueId": "7b3c4d5e-6f70-4b8c-9d0e-1f2a3b4c5d6e",
+          "name": "Raining",
+          "deviceName": "Weather",
+          "unit": null,
+          "dataType": "boolean",
+          "staleAfterSeconds": 60
         }
       ]
     },
@@ -2149,6 +2276,38 @@
           "port": 8443,
           "certificateSha256": "38:89:B9:88:6F:C8:54:B3:9D:E0:39:9E:50:5E:61:3A:C0:B2:95:9E:17:84:9D:09:2D:38:D0:B5:9D:A7:53:BE"
         }
+      }
+    },
+    "inputs": {
+      "request": {
+        "inputs": [
+          {
+            "key": "weather.outdoorTemperature",
+            "value": 12.3,
+            "unit": "°C"
+          },
+          {
+            "key": "weather.raining",
+            "value": false
+          },
+          {
+            "key": "weather.windSpeed",
+            "value": 4.2,
+            "unit": "m/s"
+          }
+        ]
+      },
+      "response": {
+        "accepted": [
+          "weather.outdoorTemperature",
+          "weather.raining"
+        ],
+        "rejected": [
+          {
+            "key": "weather.windSpeed",
+            "code": "unknown_input"
+          }
+        ]
       }
     }
   }
