@@ -62,6 +62,7 @@ LOAD_ACTION_ON: Final = "on"
 LOAD_ACTION_OFF: Final = "off"
 LOAD_ENTITY_DOMAINS: Final = ("switch", "input_boolean", "light", "fan")
 ACK_MAX_ERROR_LENGTH: Final = 256
+ACK_BODY_MAX_BYTES: Final = 1024
 ERROR_UNKNOWN_COMMAND: Final = "unknown_command"
 ISSUE_LOADS_REFUSED: Final = "loads_refused"
 ISSUE_LOADS_NEED_TLS: Final = "loads_need_tls"

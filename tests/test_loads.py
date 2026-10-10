@@ -9,6 +9,7 @@ entry; the options flow maps entities to the catalog's loads and never offers Ec
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntryState
@@ -28,7 +29,7 @@ from custom_components.ecopulse.const import (
     CONF_TLS_PORT,
     DOMAIN,
 )
-from custom_components.ecopulse.loads import NOT_MAPPED
+from custom_components.ecopulse.loads import NOT_MAPPED, error_text
 
 from .conftest import wait_until
 from .fake_gateway import FakeGateway
@@ -297,3 +298,13 @@ async def test_saving_a_new_mapping_reloads_and_switches_it(
     await tls_gateway.wait_for_acks(1)
 
     assert tls_gateway.acks[0] == (COMMAND_ID, {"ok": True, "state": "on"})
+
+
+# The ack must fit the gateway's body cap: 256 characters of emoji would not.
+def test_an_error_text_fits_the_ack_body_whatever_its_characters() -> None:
+    text = error_text(HomeAssistantError("\U0001f525" * 400))
+
+    body = json.dumps({"ok": False, "state": "off", "error": text}, ensure_ascii=False)
+    assert len(body.encode()) <= 1024
+    assert text.startswith("\U0001f525")
+    assert error_text(HomeAssistantError("")) == "HomeAssistantError"

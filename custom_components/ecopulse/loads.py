@@ -37,6 +37,7 @@ from .api import (
     EcoPulseUnknownCommandError,
 )
 from .const import (
+    ACK_BODY_MAX_BYTES,
     ACK_MAX_ERROR_LENGTH,
     COMMAND_ID_PATTERN,
     CONF_LOADS,
@@ -54,6 +55,9 @@ from .models import CatalogLoad
 _LOGGER = logging.getLogger(__name__)
 
 NOT_MAPPED = "No Home Assistant entity is mapped to this load."
+
+# What the error may take of the ack body; the rest is the envelope ({"ok":false,"state":"off"}).
+_ERROR_MAX_BYTES = ACK_BODY_MAX_BYTES - 128
 
 _SERVICE_OF = {LOAD_ACTION_ON: "turn_on", LOAD_ACTION_OFF: "turn_off"}
 
@@ -77,7 +81,11 @@ def reported_state(hass: HomeAssistant, entity_id: str) -> str | None:
 
 def error_text(err: Exception) -> str:
     """Why a switch failed, for the gateway's report: never empty, at most the contract length."""
-    return (str(err) or type(err).__name__)[:ACK_MAX_ERROR_LENGTH]
+    text = (str(err) or type(err).__name__)[:ACK_MAX_ERROR_LENGTH]
+    # 256 characters may be more bytes than the gateway reads (an emoji is four): the body must fit.
+    while len(text.encode()) > _ERROR_MAX_BYTES:
+        text = text[:-1]
+    return text
 
 
 class EcoPulseLoadSwitcher:

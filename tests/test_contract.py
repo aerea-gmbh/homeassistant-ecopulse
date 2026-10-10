@@ -320,6 +320,7 @@ def test_loads_constants_match(contract: dict[str, Any]) -> None:
     assert loads["commandIdPattern"] == const.COMMAND_ID_PATTERN
     assert loads["ackProperties"] == ["ok", "state", "error"]
     assert loads["maxErrorLength"] == const.ACK_MAX_ERROR_LENGTH
+    assert loads["ackBodyMaxBytes"] == const.ACK_BODY_MAX_BYTES
     assert loads["ackResponseStatus"] == 204
     assert {"method": "POST", "path": const.COMMAND_ACK_PATH, "scope": "loads"} in contract[
         "endpoints"
