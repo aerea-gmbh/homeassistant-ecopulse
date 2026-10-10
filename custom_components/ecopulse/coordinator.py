@@ -6,6 +6,9 @@ Client behaviour per ADR-230 §4/§6 and the contract's ``client`` block:
   ``/catalog`` and reload the entry (only if the refetched revision really differs, so an edge
   that is briefly inconsistent cannot drive a reload loop);
 - unknown value ids are ignored;
+- a ``command`` event (schema 6, #625) goes to the registered command handler, and only when this
+  stream is the pinned TLS connection: one in the clear never switches anything; the stream asks
+  for commands only while a handler is registered (review r1 MED-1);
 - 401/403 -> reauth, no further reconnects; 404 -> retry after 300 s; 429 -> Retry-After;
   a drop -> backoff from 1 s doubling to 60 s, reset by a snapshot.
 """
@@ -34,6 +37,7 @@ from .const import (
     BACKOFF_MAX_SECONDS,
     EVENT_AVAILABILITY,
     EVENT_CATALOG,
+    EVENT_COMMAND,
     EVENT_SNAPSHOT,
     EVENT_VALUES,
     RETRY_LATER_SECONDS,
@@ -104,6 +108,7 @@ class EcoPulseStreamCoordinator:
         self.connected = False
         self.stream_task: asyncio.Task[None] | None = None
         self._listeners: dict[str, list[Callable[[], None]]] = {}
+        self._command_handler: Callable[[dict[str, Any]], None] | None = None
 
     # -- entity side -----------------------------------------------------------------------------
 
@@ -122,6 +127,18 @@ class EcoPulseStreamCoordinator:
         @callback
         def remove() -> None:
             listeners.remove(update)
+
+        return remove
+
+    @callback
+    def async_set_command_handler(self, handler: Callable[[dict[str, Any]], None]) -> CALLBACK_TYPE:
+        """#625: ``handler`` gets each ``command`` event's data; the result removes it again."""
+        self._command_handler = handler
+
+        @callback
+        def remove() -> None:
+            if self._command_handler is handler:
+                self._command_handler = None
 
         return remove
 
@@ -151,7 +168,8 @@ class EcoPulseStreamCoordinator:
         while True:
             error: Exception | None = None
             try:
-                async with aclosing(self._client.async_stream()) as events:
+                answers_commands = self._command_handler is not None
+                async with aclosing(self._client.async_stream(commands=answers_commands)) as events:
                     async for event in events:
                         if await self._async_handle(event):
                             backoff = float(BACKOFF_INITIAL_SECONDS)
@@ -199,6 +217,8 @@ class EcoPulseStreamCoordinator:
             self._apply_availability(_list(event.data.get("devices")))
         elif event.name == EVENT_CATALOG:
             await self._async_ensure_catalog(event.data.get("catalogRevision"))
+        elif event.name == EVENT_COMMAND:
+            self._dispatch_command(event.data)
         # Unknown event types are ignored (additive within v1, ADR-230 §10).
         return False
 
@@ -216,6 +236,18 @@ class EcoPulseStreamCoordinator:
         )
         self.hass.config_entries.async_schedule_reload(self._entry.entry_id)
         raise _ReloadScheduled
+
+    @callback
+    def _dispatch_command(self, data: dict[str, Any]) -> None:
+        # The gateway sends commands only on a TLS stream; one arriving in the clear is not the
+        # gateway's (contract tls.client: a pinned connection or nothing) and switches nothing.
+        if not self._client.pinned:
+            _LOGGER.warning(
+                "Ignoring a command received over a connection without the pinned certificate"
+            )
+            return
+        if self._command_handler is not None:
+            self._command_handler(data)
 
     @callback
     def _apply_snapshot(self, data: dict[str, Any]) -> None:

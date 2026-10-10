@@ -21,8 +21,8 @@ data path, no MQTT broker, no polling.
 - A device whose source stops answering turns *unavailable*; everything turns unavailable while the gateway is
   unreachable, and the integration reconnects by itself.
 
-Read-only in this version. Using Home Assistant entities as inputs for EcoPulse and controlling EcoPulse from Home
-Assistant are planned.
+Beyond reading, Home Assistant can feed values into EcoPulse and EcoPulse can switch Home Assistant loads (both over
+the encrypted connection, see below). Controlling EcoPulse from Home Assistant is planned.
 
 ## Solar excess and "Surplus available"
 
@@ -163,6 +163,32 @@ Values are sent **only over the encrypted connection**. An entry without it send
 When the gateway refuses the values (the toggle in the web app was turned off), the integration stops sending them,
 shows a repair issue and keeps reading; reload the entry after turning the toggle on again.
 
+## Loads switched by EcoPulse
+
+EcoPulse can switch devices through Home Assistant, for example a heating rod or a pool pump on solar surplus. Its
+PV heater assistant switches them like relays: with its priority, minimum on and off times and delays.
+
+1. In the EcoPulse web app, create the device on the gateway's **Home Assistant** driver, add it as a **load** with its
+   nominal power on the gateway's Home Assistant card, and turn on **Loads switched by EcoPulse** there. Build the
+   heater assistant's levels from the loads.
+2. Reload the EcoPulse entry in Home Assistant, then *Configure > Loads switched by EcoPulse*: pick the switch, light,
+   fan or input boolean EcoPulse switches for each load. EcoPulse's own entities are not offered, and one entity can
+   serve only one load.
+
+When EcoPulse switches a load, the integration calls the entity's `turn_on` or `turn_off` and reports the result (and
+the entity's state) back to the gateway. A load nobody mapped, a service that fails or takes longer than 8 s, and an
+entity Home Assistant does not have or reports unavailable are reported as failed, and EcoPulse's assistant shows why.
+Commands for one entity run one after the other; when several wait, only the latest runs, so a slow `turn_on` never
+ends after a later `turn_off`. Without a power sensor, EcoPulse counts the load's nominal power as its consumption
+while it is on; map a power sensor as a value from Home Assistant to the load's device and bind it to the heater to
+measure it instead.
+
+Commands are taken **only over the encrypted connection**; an entry without it never switches anything and shows a
+repair issue. There is no timeout on the Home Assistant side: when the gateway or the connection goes away, the
+entity keeps its state, and EcoPulse sends its command again after the reconnect. When the gateway refuses the answer
+to a command (the toggle in the web app was turned off), the integration stops switching, shows a repair issue and
+keeps reading; reload the entry after turning the toggle on again.
+
 ## Alarms
 
 Your EcoPulse alarm rules show up on the gateway device as problem sensors, so an automation can react to an alarm
@@ -225,7 +251,9 @@ do not confirm it.
 ## Security notes
 
 - The token can only **read** the values of this one gateway, plus, if you turn on *Values from Home Assistant* in
-  the EcoPulse web app, send values into the inputs EcoPulse defined. It cannot change the gateway's configuration and
+  the EcoPulse web app, send values into the inputs EcoPulse defined, and, with *Loads switched by EcoPulse*, answer
+  the gateway's switch commands. The entities EcoPulse switches are only the ones you map, with Home Assistant's own
+  services. It cannot change the gateway's configuration and
   does not open its web interface.
 - With the encrypted connection the token and the values travel over TLS, and the entry is pinned to the gateway's
   certificate: it never falls back to plain HTTP. Without it the connection is plain HTTP on your LAN, as the

@@ -12,6 +12,7 @@ the slot's unique id; a changed mapping reloads the entry).
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping
 import logging
 from typing import Any
@@ -54,6 +55,7 @@ from .const import (
     API_VERSION,
     CONF_FINGERPRINT_MATCHES,
     CONF_INPUTS,
+    CONF_LOADS,
     CONF_SURPLUS_HYSTERESIS,
     CONF_SURPLUS_OFF_DELAY,
     CONF_SURPLUS_ON_DELAY,
@@ -69,6 +71,7 @@ from .const import (
     DEFAULT_TLS_PORT,
     DOMAIN,
     INPUT_DOMAINS,
+    LOAD_ENTITY_DOMAINS,
     MAX_SURPLUS_DELAY_SECONDS,
     MAX_SURPLUS_POWER_W,
     TOKEN_PREFIX,
@@ -76,7 +79,7 @@ from .const import (
     ZEROCONF_TXT_ID,
 )
 from .inputs import ecopulse_entity_ids
-from .models import CatalogInput, GatewayInfo
+from .models import CatalogInput, CatalogLoad, GatewayInfo
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -432,9 +435,11 @@ class EcoPulseOptionsFlow(OptionsFlow):
     def __init__(self) -> None:
         # The inputs form's field labels (readable, unique) -> the slot's unique id.
         self._slot_by_label: dict[str, str] = {}
+        # #625: the loads form's field labels -> the load's unique id.
+        self._load_by_label: dict[str, str] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["surplus", "inputs"])
+        return self.async_show_menu(step_id="init", menu_options=["surplus", "inputs", "loads"])
 
     async def async_step_surplus(
         self, user_input: dict[str, Any] | None = None
@@ -482,9 +487,58 @@ class EcoPulseOptionsFlow(OptionsFlow):
             description_placeholders={"count": str(len(slots))},
         )
 
+    async def async_step_loads(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """One entity picker per load of the loaded catalog (#625): the switch, light, fan or
+        input boolean EcoPulse switches for it. EcoPulse's own entities are left out."""
+        loads = self._catalog_loads()
+        if not loads:
+            return self.async_abort(reason="no_loads")
+        current: dict[str, str] = self.config_entry.options.get(CONF_LOADS) or {}
+        errors: dict[str, str] = {}
+        placeholders = {"count": str(len(loads)), "entities": ""}
+        if user_input is not None:
+            mapping = {
+                self._load_by_label[label]: entity_id
+                for label, entity_id in user_input.items()
+                if label in self._load_by_label and entity_id
+            }
+            # Review r2 LOW-C: one entity for two loads would make them fight (each command
+            # replaces the other's) and count its power twice.
+            if twice := _mapped_twice(mapping):
+                errors["base"] = "entity_mapped_twice"
+                placeholders["entities"] = ", ".join(twice)
+                current = mapping
+            else:
+                return self.async_create_entry(
+                    data={**self.config_entry.options, CONF_LOADS: mapping}
+                )
+
+        own = sorted(ecopulse_entity_ids(self.hass))
+        fields: dict[Any, Any] = {}
+        suggested: dict[str, str] = {}
+        self._load_by_label = {}
+        for load in loads:
+            label = _load_label(load, self._load_by_label)
+            self._load_by_label[label] = load.unique_id
+            fields[vol.Optional(label)] = EntitySelector(
+                EntitySelectorConfig(domain=list(LOAD_ENTITY_DOMAINS), exclude_entities=own)
+            )
+            if current.get(load.unique_id):
+                suggested[label] = current[load.unique_id]
+        return self.async_show_form(
+            step_id="loads",
+            data_schema=self.add_suggested_values_to_schema(vol.Schema(fields), suggested),
+            errors=errors,
+            description_placeholders=placeholders,
+        )
+
     def _slots(self) -> tuple[CatalogInput, ...]:
         runtime = getattr(self.config_entry, "runtime_data", None)
         return runtime.coordinator.catalog.inputs if runtime is not None else ()
+
+    def _catalog_loads(self) -> tuple[CatalogLoad, ...]:
+        runtime = getattr(self.config_entry, "runtime_data", None)
+        return runtime.coordinator.catalog.loads if runtime is not None else ()
 
 
 def _slot_label(slot: CatalogInput, taken: Mapping[str, str]) -> str:
@@ -492,3 +546,15 @@ def _slot_label(slot: CatalogInput, taken: Mapping[str, str]) -> str:
     unit = f" ({slot.unit})" if slot.unit else ""
     label = f"{slot.device_name}: {slot.name}{unit}" if slot.device_name else f"{slot.name}{unit}"
     return f"{label} [{slot.key}]" if label in taken else label
+
+
+def _mapped_twice(mapping: dict[str, str]) -> list[str]:
+    """The entities the mapping names for more than one load, sorted."""
+    counts = Counter(mapping.values())
+    return sorted(entity_id for entity_id, count in counts.items() if count > 1)
+
+
+def _load_label(load: CatalogLoad, taken: Mapping[str, str]) -> str:
+    """``Pool pump (1200 W)``; the load key is added when two would read alike."""
+    label = f"{load.name} ({load.nominal_power_w:g} W)"
+    return f"{label} [{load.key}]" if label in taken else label

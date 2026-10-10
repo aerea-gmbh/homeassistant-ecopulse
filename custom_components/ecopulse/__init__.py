@@ -25,6 +25,7 @@ from .api import (
 from .const import BACKOFF_INITIAL_SECONDS, DOMAIN, GATEWAY_MODEL, MANUFACTURER
 from .coordinator import EcoPulseStreamCoordinator, wait_after_failure
 from .inputs import EcoPulseInputForwarder
+from .loads import EcoPulseLoadSwitcher
 from .models import Catalog
 from .surplus import surplus_available_unique_id, surplus_source
 
@@ -38,6 +39,7 @@ class EcoPulseRuntimeData:
     client: EcoPulseApiClient
     coordinator: EcoPulseStreamCoordinator
     inputs: EcoPulseInputForwarder
+    loads: EcoPulseLoadSwitcher
 
 
 type EcoPulseConfigEntry = ConfigEntry[EcoPulseRuntimeData]
@@ -82,8 +84,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> 
     coordinator = EcoPulseStreamCoordinator(hass, entry, client, catalog)
     # #624: the catalog's input slots, fed from the entities the options map to them.
     inputs = EcoPulseInputForwarder(hass, entry, client, catalog.inputs)
-    entry.runtime_data = EcoPulseRuntimeData(client, coordinator, inputs)
+    # #625: the catalog's loads, switched on the gateway's commands through the mapped entities.
+    loads = EcoPulseLoadSwitcher(hass, entry, client, coordinator)
+    entry.runtime_data = EcoPulseRuntimeData(client, coordinator, inputs, loads)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    loads.async_start()  # before the stream: no command of the first connection is missed
     coordinator.async_start(initial_wait)
     inputs.async_start()
     return True

@@ -27,6 +27,9 @@ from yarl import URL
 
 from .const import (
     API_BASE_PATH,
+    COMMAND_ACK_PATH,
+    COMMAND_OPT_IN_PARAMETER,
+    COMMAND_OPT_IN_VALUE,
     CONF_TLS_FINGERPRINT,
     CONF_TLS_PORT,
     FINGERPRINT_PATTERN,
@@ -77,6 +80,20 @@ class EcoPulseInputsRefusedError(EcoPulseError):
     def __init__(self, code: str | None) -> None:
         super().__init__(f"the gateway refused the inputs ({code})")
         self.code = code
+
+
+class EcoPulseLoadsRefusedError(EcoPulseError):
+    """403 on a command ack (contract ``client.routeErrors``: ``disable-route``, #625): the token
+    may no longer switch loads (the toggle in the EcoPulse web app is off). Reading goes on."""
+
+    def __init__(self, code: str | None) -> None:
+        super().__init__(f"the gateway refused the command ack ({code})")
+        self.code = code
+
+
+class EcoPulseUnknownCommandError(EcoPulseError):
+    """404 ``unknown_command`` on a command ack (contract action ``drop-request``): nothing waits
+    for it any more (another Home Assistant answered first, or it timed out)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,11 +171,45 @@ class EcoPulseApiClient:
             raise EcoPulseConnectionError(f"POST inputs failed: {type(err).__name__}") from err
         return _parse("inputs", _inputs_result, data if isinstance(data, dict) else {})
 
-    async def async_stream(self) -> AsyncIterator[SseEvent]:
+    async def async_ack_command(
+        self, command_id: str, ok: bool, state: str | None, error: str | None = None
+    ) -> None:
+        """``POST /commands/{commandId}/ack`` (schema 6, #625): 204. A 403 is the route's
+        (:class:`EcoPulseLoadsRefusedError`), a 404 a command nothing waits for
+        (:class:`EcoPulseUnknownCommandError`); neither is a reauth."""
+        body: dict[str, Any] = {"ok": ok, "state": state}
+        if error is not None:
+            body["error"] = error
+        path = COMMAND_ACK_PATH.format(commandId=command_id).lstrip("/")
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
+        try:
+            async with self._session.post(
+                self._base / path,
+                headers=self._headers,
+                json=body,
+                timeout=timeout,
+                allow_redirects=False,
+                ssl=self._ssl,
+            ) as response:
+                if response.status == 403:
+                    raise EcoPulseLoadsRefusedError(await _error_code(response))
+                if response.status == 404:
+                    raise EcoPulseUnknownCommandError("nothing waits for this command")
+                _raise_for_status(response, success=204)
+        except aiohttp.ServerFingerprintMismatch as err:
+            raise _mismatch(err) from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise EcoPulseConnectionError(f"POST command ack failed: {type(err).__name__}") from err
+
+    async def async_stream(self, *, commands: bool = False) -> AsyncIterator[SseEvent]:
         """Yield events until the stream ends; raise on silence, errors or auth failure.
 
         ``sock_read`` makes aiohttp fail a read that saw no byte for the dead timeout, which is
         exactly the contract's "no byte for 45 s = dead" (pings count as bytes).
+
+        ``commands`` asks the gateway for ``command`` events (review r1 MED-1): it sends them only
+        to a stream that asks, so it never waits for a client that cannot answer. Never asked for
+        in the clear, where no command is acted on.
         """
         timeout = aiohttp.ClientTimeout(
             total=None, sock_connect=REQUEST_TIMEOUT_SECONDS, sock_read=STREAM_DEAD_AFTER_SECONDS
@@ -167,6 +218,11 @@ class EcoPulseApiClient:
         try:
             async with self._session.get(
                 self._base / "stream",
+                params=(
+                    {COMMAND_OPT_IN_PARAMETER: COMMAND_OPT_IN_VALUE}
+                    if commands and self.pinned
+                    else None
+                ),
                 headers={**self._headers, "Accept": "text/event-stream"},
                 timeout=timeout,
                 allow_redirects=False,
@@ -315,8 +371,10 @@ __all__ = [
     "EcoPulseError",
     "EcoPulseInputsRefusedError",
     "EcoPulseInvalidRequestError",
+    "EcoPulseLoadsRefusedError",
     "EcoPulseNotEnabledError",
     "EcoPulseRateLimitedError",
+    "EcoPulseUnknownCommandError",
     "InputsResult",
     "async_fetch_certificate_fingerprint",
     "client_for",

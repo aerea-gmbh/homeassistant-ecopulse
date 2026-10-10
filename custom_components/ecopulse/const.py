@@ -51,6 +51,27 @@ ISSUE_INPUTS_NEED_TLS: Final = "inputs_need_tls"
 ISSUE_INPUT_UNIT: Final = "input_unit"
 ISSUE_INPUT_LOOP: Final = "input_loop"
 
+# Contract "loads" (schema 6, #625, ADR-232 S6): EcoPulse switches Home Assistant loads. The gateway
+# sends a "command" event on the pinned TLS stream; the options map each load's unique id (the
+# device Guid) to a Home Assistant entity, which is switched and the command acknowledged.
+CONF_LOADS: Final = "loads"
+EVENT_COMMAND: Final = "command"
+COMMAND_ACK_PATH: Final = "/commands/{commandId}/ack"
+COMMAND_ID_PATTERN: Final = "^[0-9a-f]{32}$"
+LOAD_ACTION_ON: Final = "on"
+LOAD_ACTION_OFF: Final = "off"
+LOAD_ENTITY_DOMAINS: Final = ("switch", "input_boolean", "light", "fan")
+ACK_MAX_ERROR_LENGTH: Final = 256
+ACK_BODY_MAX_BYTES: Final = 1024
+ACK_TIMEOUT_SECONDS: Final = 10
+# Review r1 MED-1: the gateway sends commands only to a stream that asks for them this way.
+COMMAND_OPT_IN_PARAMETER: Final = "commands"
+COMMAND_OPT_IN_VALUE: Final = "1"
+ERROR_UNKNOWN_COMMAND: Final = "unknown_command"
+ISSUE_LOADS_REFUSED: Final = "loads_refused"
+ISSUE_LOADS_NEED_TLS: Final = "loads_need_tls"
+ISSUE_LOAD_LOOP: Final = "load_loop"
+
 ZEROCONF_SERVICE_TYPE: Final = "_ecopulse._tcp.local."
 ZEROCONF_TXT_ID: Final = "id"
 ZEROCONF_TXT_API: Final = "api"

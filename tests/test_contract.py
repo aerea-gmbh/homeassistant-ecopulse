@@ -22,7 +22,7 @@ from custom_components.ecopulse.models import Catalog, GatewayInfo
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "bd790d82518472499cd1cb0fca3dbd0801c562a124fa856007247db8f4be9506"
+CONTRACT_SHA256 = "a0b6aaeee39f0e02fcf52907f85bdab877d75ac07224b396297f4b26f683459b"
 COMPONENT_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse"
 MANIFEST_PATH = COMPONENT_PATH / "manifest.json"
 STRINGS_PATH = COMPONENT_PATH / "strings.json"
@@ -34,7 +34,7 @@ def test_fixture_is_the_pinned_contract() -> None:
 
 
 def test_schema_and_api_version_are_the_ones_this_plugin_speaks(contract: dict[str, Any]) -> None:
-    assert contract["schemaVersion"] == 5
+    assert contract["schemaVersion"] == 6
     assert contract["apiVersion"] == const.API_VERSION
     assert contract["basePath"] == const.API_BASE_PATH
 
@@ -206,6 +206,7 @@ def test_stream_event_names_match(contract: dict[str, Any]) -> None:
         const.EVENT_VALUES,
         const.EVENT_AVAILABILITY,
         const.EVENT_CATALOG,
+        const.EVENT_COMMAND,
     ]
 
 
@@ -285,14 +286,12 @@ def test_inputs_constants_match(contract: dict[str, Any]) -> None:
         "endpoints"
     ]
     assert "inputs" in const.SCOPES_REQUIRING_TLS
-    assert contract["client"]["routeErrors"] == [
-        {
-            "method": "POST",
-            "path": "/" + const.INPUTS_PATH,
-            "status": 403,
-            "client": const.CLIENT_ACTION_DISABLE_ROUTE,
-        }
-    ]
+    assert contract["client"]["routeErrors"][0] == {
+        "method": "POST",
+        "path": "/" + const.INPUTS_PATH,
+        "status": 403,
+        "client": const.CLIENT_ACTION_DISABLE_ROUTE,
+    }
     assert {e["code"]: e["client"] for e in contract["errors"]}[
         const.ERROR_INVALID_REQUEST
     ] == const.CLIENT_ACTION_DROP_REQUEST
@@ -312,8 +311,66 @@ def test_the_catalog_s_input_slots_are_read(contract: dict[str, Any]) -> None:
     assert Catalog.from_dict(older).inputs == ()
 
 
+def test_loads_constants_match(contract: dict[str, Any]) -> None:
+    # Schema 6 (#625, ADR-232 S6): the command event, its ack route and what a load maps to.
+    loads = contract["loads"]
+    assert contract["stream"]["eventProperties"][const.EVENT_COMMAND] == loads["commandProperties"]
+    assert loads["actions"] == [const.LOAD_ACTION_ON, const.LOAD_ACTION_OFF]
+    assert loads["entityDomains"] == list(const.LOAD_ENTITY_DOMAINS)
+    assert loads["commandIdPattern"] == const.COMMAND_ID_PATTERN
+    assert loads["ackProperties"] == ["ok", "state", "error"]
+    assert loads["maxErrorLength"] == const.ACK_MAX_ERROR_LENGTH
+    assert loads["ackBodyMaxBytes"] == const.ACK_BODY_MAX_BYTES
+    assert loads["ackResponseStatus"] == 204
+    assert loads["ackTimeoutSeconds"] == const.ACK_TIMEOUT_SECONDS
+    # Review r1 MED-1: commands reach only a stream that asks for them; this client answers them.
+    assert loads["commandOptIn"] == {
+        "parameter": const.COMMAND_OPT_IN_PARAMETER,
+        "value": const.COMMAND_OPT_IN_VALUE,
+    }
+    assert loads["delivery"] == "all-command-streams-first-success-wins"
+    assert {"method": "POST", "path": const.COMMAND_ACK_PATH, "scope": "loads"} in contract[
+        "endpoints"
+    ]
+    assert "loads" in const.SCOPES_REQUIRING_TLS
+    assert {
+        "method": "POST",
+        "path": const.COMMAND_ACK_PATH,
+        "status": 403,
+        "client": const.CLIENT_ACTION_DISABLE_ROUTE,
+    } in contract["client"]["routeErrors"]
+    assert {e["code"]: (e["status"], e["client"]) for e in contract["errors"]}[
+        const.ERROR_UNKNOWN_COMMAND
+    ] == (404, const.CLIENT_ACTION_DROP_REQUEST)
+    assert contract["examples"]["loads"]["ack"]["path"] == const.COMMAND_ACK_PATH.format(
+        commandId=contract["examples"]["stream"][const.EVENT_COMMAND]["commandId"]
+    )
+
+
+def test_the_catalog_s_loads_are_read(contract: dict[str, Any]) -> None:
+    catalog = Catalog.from_dict(contract["examples"]["catalog"])
+    expected = contract["examples"]["catalog"]["loads"]
+
+    assert [
+        (lo.key, lo.unique_id, lo.name, lo.channel, lo.nominal_power_w) for lo in catalog.loads
+    ] == [
+        (lo["key"], lo["uniqueId"], lo["name"], lo["channel"], lo["nominalPowerW"])
+        for lo in expected
+    ]
+    older = {k: v for k, v in contract["examples"]["catalog"].items() if k != "loads"}
+    assert Catalog.from_dict(older).loads == ()
+
+
+# The command ack's 404 (unknown_command, #625) is answered by its own route; every other error
+# goes through the shared status mapping.
 @pytest.mark.parametrize(
-    "error", json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["errors"], ids=str
+    "error",
+    [
+        e
+        for e in json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["errors"]
+        if e["code"] != "unknown_command"
+    ],
+    ids=str,
 )
 def test_every_contract_error_maps_to_its_client_action(error: dict[str, Any]) -> None:
     response = SimpleNamespace(status=error["status"], headers={"Retry-After": "3"})

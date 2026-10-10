@@ -118,6 +118,28 @@ class CatalogInput:
 
 
 @dataclass(frozen=True, slots=True)
+class CatalogLoad:
+    """One load EcoPulse may switch (schema 6, #625): ``unique_id`` (the device Guid) is what a
+    command names and what the options map to a Home Assistant entity; it survives renames."""
+
+    key: str
+    unique_id: str
+    name: str
+    channel: int
+    nominal_power_w: float
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CatalogLoad:
+        return cls(
+            key=str(data["key"]),
+            unique_id=str(data["uniqueId"]),
+            name=str(data["name"]),
+            channel=int(data["channel"]),
+            nominal_power_w=float(data["nominalPowerW"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class Catalog:
     """``GET /catalog``."""
 
@@ -131,6 +153,8 @@ class Catalog:
     gateway_entities: tuple[CatalogEntity, ...]
     # The input slots (schema 5, #624): absent before schema 5 and while the token lacks "inputs".
     inputs: tuple[CatalogInput, ...] = ()
+    # The loads (schema 6, #625): absent before schema 6 and while the token lacks "loads".
+    loads: tuple[CatalogLoad, ...] = ()
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Catalog:
@@ -145,6 +169,7 @@ class Catalog:
                 CatalogEntity.from_dict(e) for e in gateway.get("entities") or ()
             ),
             inputs=tuple(CatalogInput.from_dict(i) for i in data.get("inputs") or ()),
+            loads=tuple(CatalogLoad.from_dict(lo) for lo in data.get("loads") or ()),
         )
 
     @classmethod

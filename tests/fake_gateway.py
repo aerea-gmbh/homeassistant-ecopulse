@@ -7,6 +7,9 @@ wrong token -> 401, forced status (e.g. 403) -> that status, unknown path -> 404
 items whose key is a catalog slot accepted and the rest rejected ``unknown_input``, or
 ``inputs_status`` (with the contract's code) when a test forces one.
 
+``POST /commands/{commandId}/ack`` (schema 6, #625) records every ack and answers 204, or
+``ack_status`` (with the contract's code) when a test forces one.
+
 With ``tls=True`` it serves HTTPS with a self-signed ECDSA P-256 certificate of its own, like
 the gateway's TLS port (#610 S8-TLS); ``fingerprint`` is that certificate's SHA-256 in the
 contract format, and ``/info`` names it.
@@ -63,6 +66,8 @@ class FakeGateway:
     posted_inputs: list[dict[str, Any]] = field(default_factory=list)
     inputs_status: int | None = None
     inputs_retry_after: int | None = None
+    acks: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    ack_status: int | None = None
 
     def __post_init__(self) -> None:
         examples = self.contract["examples"]
@@ -74,6 +79,7 @@ class FakeGateway:
         self._server: TestServer | None = None
         self._stream_opened = asyncio.Event()
         self._posted = asyncio.Event()
+        self._acked = asyncio.Event()
         self._closing = False
         self._streams_ready = 0
 
@@ -207,9 +213,11 @@ class FakeGateway:
             raise web.HTTPFound(self.redirect_to)
         tail = request.match_info["tail"]
         if request.method == "POST":
-            return (
-                await self._inputs(request) if tail == "inputs" else _error(404, "not_found", "x")
-            )
+            if tail == "inputs":
+                return await self._inputs(request)
+            if tail.startswith("commands/") and tail.endswith("/ack"):
+                return await self._ack(request, tail.split("/")[1])
+            return _error(404, "not_found", "x")
         if tail == "info":
             return web.json_response(self.info)
         if tail == "catalog":
@@ -223,6 +231,20 @@ class FakeGateway:
             while len(self.posted_inputs) < count:
                 self._posted.clear()
                 await self._posted.wait()
+
+    async def wait_for_acks(self, count: int, timeout: float = 5) -> None:
+        async with asyncio.timeout(timeout):
+            while len(self.acks) < count:
+                self._acked.clear()
+                await self._acked.wait()
+
+    async def _ack(self, request: web.Request, command_id: str) -> web.Response:
+        self.acks.append((command_id, await request.json()))
+        self._acked.set()
+        if self.ack_status is not None:
+            code = {403: "insufficient_scope", 404: "unknown_command"}.get(self.ack_status, "x")
+            return _error(self.ack_status, code, "x")
+        return web.Response(status=204)
 
     async def _inputs(self, request: web.Request) -> web.Response:
         body = await request.json()
