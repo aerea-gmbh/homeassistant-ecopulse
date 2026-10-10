@@ -78,11 +78,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> 
         raise ConfigEntryNotReady(f"Found gateway {catalog.gateway_id} at this address")
 
     # #627: the controls only with the "control" scope over the pinned connection.
-    controls = await async_served_controls(client, catalog.controls)
+    offer = await async_served_controls(client, catalog.controls)
+    controls = offer.served
     if catalog.devices or catalog.gateway_entities or controls:
         _register_gateway_device(hass, entry, catalog)
     if catalog.devices:
-        _remove_stale_registry_entries(hass, entry, catalog, controls)
+        _remove_stale_registry_entries(hass, entry, catalog, offer.kept)
     elif catalog.revision:  # served by the gateway, not the pending stand-in
         # Never prune on an empty catalog (a push that rendered nothing, a projection bug, the
         # pending catalog above): it would wipe every customisation and hand-enabled entity.
@@ -146,7 +147,8 @@ def _remove_stale_registry_entries(
 ) -> None:
     """Drop entities and devices the catalog no longer has (signal or aggregate deleted, or a
     gateway entity the edge stopped serving, which takes the plugin's derived sensor with it), and
-    the controls this entry no longer offers (#627: the scope went, or the pin)."""
+    the controls this entry no longer offers (#627: the scope went, or the pin; a failed /info
+    keeps them, review r1 LOW-6)."""
     entity_registry = er.async_get(hass)
     # (platform, unique id): a signal that moved sensor <-> binary_sensor keeps its unique id,
     # and its entry on the old platform would otherwise stay behind as an orphan.

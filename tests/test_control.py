@@ -147,6 +147,35 @@ async def test_a_reload_without_the_scope_removes_the_control_entities(
     assert device(hass, ASSISTANT) is None
 
 
+# Review r1 LOW-6: only a successful /info without the scope says the controls are gone. A /info
+# that failed (busy, rate limited, timed out) says nothing, so a reload keeps the registry entries
+# (their entity ids, areas and automation references) and only sets up no control entity this time.
+@pytest.mark.usefixtures("fast_backoff")
+@pytest.mark.parametrize("status", [429, 503, 500])
+async def test_a_failed_info_keeps_the_control_entities_in_the_registry(
+    hass: HomeAssistant, tls_gateway: FakeGateway, status: int
+) -> None:
+    entry = _entry(tls_gateway)
+    await _load(hass, tls_gateway, entry)
+    before = _control_entities(hass, entry)
+    assert len(before) == 4
+
+    tls_gateway.info_status = status
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert _control_entities(hass, entry) == before
+    assert device(hass, ASSISTANT) is not None
+    assert entry.runtime_data.controls.controls == ()
+
+    # The positive counterpart: once /info answers without the scope, the same reload prunes them.
+    tls_gateway.info_status = None
+    tls_gateway.info["scopes"] = ["read"]
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert _control_entities(hass, entry) == set()
+
+
 # ---- state from the stream -----------------------------------------------------------------------
 
 

@@ -18,6 +18,7 @@ goes on and the entry is not reauthenticated. A reload tries again.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 from typing import Any
 
@@ -45,22 +46,37 @@ from .models import CatalogControl
 _LOGGER = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class ControlOffer:
+    """What this entry does with the catalog's controls on this setup.
+
+    ``served`` become entities now. ``kept`` stay in the entity registry: the served ones, and
+    after a ``/info`` that failed (review r1 LOW-6) every catalog control, because a failure says
+    nothing about the scope; only a successful ``/info`` without it (or a lost pin) prunes them.
+    """
+
+    served: tuple[CatalogControl, ...]
+    kept: tuple[CatalogControl, ...]
+
+
 async def async_served_controls(
     client: EcoPulseApiClient, controls: tuple[CatalogControl, ...]
-) -> tuple[CatalogControl, ...]:
+) -> ControlOffer:
     """The catalog's controls this entry offers: none without the pin or without the scope.
 
     ``/info`` is asked only over the pinned connection; without the pin there is nothing to ask.
     """
     if not controls or not client.pinned:
-        return ()
+        return ControlOffer((), ())
     try:
         info = await client.async_get_info()
     except EcoPulseError as err:
-        # The stream reports and handles the gateway's state; without the scope's word, no control.
-        _LOGGER.debug("No control entities: /info failed (%s)", type(err).__name__)
-        return ()
-    return controls if SCOPE_CONTROL in info.scopes else ()
+        # No entity without the scope's word, but no pruning on a failure either: a reload with
+        # /info answering sets them up again with their entity ids, areas and automations intact.
+        _LOGGER.debug("No control entities this time: /info failed (%s)", type(err).__name__)
+        return ControlOffer((), controls)
+    served = controls if SCOPE_CONTROL in info.scopes else ()
+    return ControlOffer(served, served)
 
 
 class EcoPulseControls:
