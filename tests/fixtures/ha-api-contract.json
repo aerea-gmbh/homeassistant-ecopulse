@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "apiVersion": 1,
   "basePath": "/api/ha/v1",
   "auth": {
@@ -38,6 +38,11 @@
       "method": "POST",
       "path": "/inputs",
       "scope": "inputs"
+    },
+    {
+      "method": "POST",
+      "path": "/commands/{commandId}/ack",
+      "scope": "loads"
     }
   ],
   "reserved": {
@@ -49,9 +54,7 @@
         "slice": "S8"
       }
     ],
-    "streamEvents": [
-      "command"
-    ]
+    "streamEvents": []
   },
   "errors": [
     {
@@ -83,6 +86,11 @@
       "status": 400,
       "code": "invalid_request",
       "client": "drop-request"
+    },
+    {
+      "status": 404,
+      "code": "unknown_command",
+      "client": "drop-request"
     }
   ],
   "errorProperties": [
@@ -108,6 +116,12 @@
         "path": "/inputs",
         "status": 403,
         "client": "disable-route"
+      },
+      {
+        "method": "POST",
+        "path": "/commands/{commandId}/ack",
+        "status": 403,
+        "client": "disable-route"
       }
     ]
   },
@@ -129,7 +143,8 @@
       "catalogRevision",
       "gateway",
       "devices",
-      "inputs"
+      "inputs",
+      "loads"
     ],
     "gatewayProperties": [
       "id",
@@ -680,7 +695,8 @@
       "snapshot",
       "values",
       "availability",
-      "catalog"
+      "catalog",
+      "command"
     ],
     "eventProperties": {
       "snapshot": [
@@ -696,6 +712,12 @@
       ],
       "catalog": [
         "catalogRevision"
+      ],
+      "command": [
+        "commandId",
+        "load",
+        "action",
+        "issuedAt"
       ]
     },
     "valueProperties": [
@@ -753,7 +775,8 @@
       "gatewayName",
       "token",
       "devices",
-      "inputs"
+      "inputs",
+      "loads"
     ],
     "tokenProperties": [
       "hash",
@@ -897,6 +920,60 @@
       "staleAfterSeconds"
     ]
   },
+  "loads": {
+    "driverType": "home-assistant",
+    "actions": [
+      "on",
+      "off"
+    ],
+    "entityDomains": [
+      "switch",
+      "input_boolean",
+      "light",
+      "fan"
+    ],
+    "commandProperties": [
+      "commandId",
+      "load",
+      "action",
+      "issuedAt"
+    ],
+    "commandIdPattern": "^[0-9a-f]{32}$",
+    "ackProperties": [
+      "ok",
+      "state",
+      "error"
+    ],
+    "optionalAckProperties": [
+      "error"
+    ],
+    "nullableAckProperties": [
+      "state"
+    ],
+    "maxErrorLength": 256,
+    "ackBodyMaxBytes": 1024,
+    "ackResponseStatus": 204,
+    "ackTimeoutSeconds": 10,
+    "delivery": "all-command-streams-first-ack-wins",
+    "commandStreams": "tls-with-loads-scope",
+    "onNoCommandStream": "apply-fails",
+    "onOutage": "keep-state-reapply-on-reconnect",
+    "catalogProperties": [
+      "key",
+      "uniqueId",
+      "name",
+      "channel",
+      "nominalPowerW"
+    ],
+    "blockProperties": [
+      "driverId",
+      "key",
+      "uniqueId",
+      "name",
+      "channel",
+      "nominalPowerW"
+    ]
+  },
   "examples": {
     "token": {
       "token": "ecp_ha_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
@@ -911,7 +988,8 @@
           "algorithm": "sha256",
           "scopes": [
             "read",
-            "inputs"
+            "inputs",
+            "loads"
           ]
         },
         "devices": [
@@ -1027,6 +1105,24 @@
             "dataType": "boolean",
             "staleAfterSeconds": 60
           }
+        ],
+        "loads": [
+          {
+            "driverId": "home-assistant",
+            "key": "heating-rod",
+            "uniqueId": "9d5e6f70-8b92-4dae-9f10-3b4c5d6e7f80",
+            "name": "Heating rod",
+            "channel": 0,
+            "nominalPowerW": 3000
+          },
+          {
+            "driverId": "home-assistant",
+            "key": "pool-pump",
+            "uniqueId": "8c4d5e6f-7a81-4c9d-8e0f-2a3b4c5d6e7f",
+            "name": "Pool pump",
+            "channel": 1,
+            "nominalPowerW": 1200
+          }
         ]
       }
     },
@@ -1041,7 +1137,8 @@
       "catalogRevision": "9c1e4b7a2f05d863",
       "scopes": [
         "read",
-        "inputs"
+        "inputs",
+        "loads"
       ],
       "transport": {
         "tls": true,
@@ -1400,6 +1497,22 @@
           "unit": null,
           "dataType": "boolean",
           "staleAfterSeconds": 60
+        }
+      ],
+      "loads": [
+        {
+          "key": "heating-rod",
+          "uniqueId": "9d5e6f70-8b92-4dae-9f10-3b4c5d6e7f80",
+          "name": "Heating rod",
+          "channel": 0,
+          "nominalPowerW": 3000
+        },
+        {
+          "key": "pool-pump",
+          "uniqueId": "8c4d5e6f-7a81-4c9d-8e0f-2a3b4c5d6e7f",
+          "name": "Pool pump",
+          "channel": 1,
+          "nominalPowerW": 1200
         }
       ]
     },
@@ -2252,6 +2365,12 @@
       },
       "catalog": {
         "catalogRevision": "4d2a8e61b7c3f095"
+      },
+      "command": {
+        "commandId": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "load": "8c4d5e6f-7a81-4c9d-8e0f-2a3b4c5d6e7f",
+        "action": "on",
+        "issuedAt": "2026-10-10T12:00:00Z"
       }
     },
     "error": {
@@ -2308,6 +2427,23 @@
             "code": "unknown_input"
           }
         ]
+      }
+    },
+    "loads": {
+      "ack": {
+        "path": "/commands/0f1e2d3c4b5a69788796a5b4c3d2e1f0/ack",
+        "request": {
+          "ok": true,
+          "state": "on"
+        }
+      },
+      "failedAck": {
+        "path": "/commands/0f1e2d3c4b5a69788796a5b4c3d2e1f0/ack",
+        "request": {
+          "ok": false,
+          "state": null,
+          "error": "switch.pool_pump is unavailable"
+        }
       }
     }
   }

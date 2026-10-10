@@ -43,7 +43,7 @@ async def _open(hass: HomeAssistant, config_entry: MockConfigEntry) -> dict:
         config_entry.add_to_hass(hass)
     menu = await hass.config_entries.options.async_init(config_entry.entry_id)
     assert menu["type"] is FlowResultType.MENU
-    assert menu["menu_options"] == ["surplus", "inputs"]
+    assert menu["menu_options"] == ["surplus", "inputs", "loads"]
     result = await hass.config_entries.options.async_configure(
         menu["flow_id"], {"next_step_id": "surplus"}
     )

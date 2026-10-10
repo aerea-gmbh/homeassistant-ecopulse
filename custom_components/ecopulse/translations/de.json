@@ -88,7 +88,8 @@
         "title": "EcoPulse-Optionen",
         "menu_options": {
           "surplus": "Überschuss verfügbar",
-          "inputs": "Werte aus Home Assistant"
+          "inputs": "Werte aus Home Assistant",
+          "loads": "Von EcoPulse geschaltete Verbraucher"
         }
       },
       "surplus": {
@@ -110,10 +111,15 @@
       "inputs": {
         "title": "Werte aus Home Assistant",
         "description": "Das Gateway bietet {count} Eingänge an: Werte, die Home Assistant an EcoPulse senden darf (zum Beispiel eine Außentemperatur). Wähle für jeden die Entität, die ihn speist; ein leerer Eingang bekommt nichts. Werte werden in die Einheit des Eingangs umgerechnet und bei jeder Änderung sowie alle 10 Sekunden über die verschlüsselte Verbindung gesendet; ein Eingang ohne Wert seit einer Minute gilt in EcoPulse als fehlend. Die eigenen Entitäten von EcoPulse werden nicht angeboten."
+      },
+      "loads": {
+        "title": "Von EcoPulse geschaltete Verbraucher",
+        "description": "Das Gateway bietet {count} Verbraucher an, die EcoPulse schalten darf, zum Beispiel einen Heizstab oder eine Poolpumpe bei Solarüberschuss. Wähle für jeden den Schalter, das Licht, den Ventilator oder den Input-Boolean, den EcoPulse dafür schaltet; bleibt ein Verbraucher leer, kann EcoPulse ihn nicht schalten. Befehle kommen nur über die verschlüsselte Verbindung. Entitäten von EcoPulse selbst werden nicht angeboten."
       }
     },
     "abort": {
-      "no_inputs": "Das Gateway bietet keine Eingänge an. Lege in der EcoPulse-Web-App den Home-Assistant-Treiber des Gateways mit den zu speisenden Geräten an und schalte auf der Home-Assistant-Karte des Gateways „Werte aus Home Assistant“ ein; lade danach diese Integration neu."
+      "no_inputs": "Das Gateway bietet keine Eingänge an. Lege in der EcoPulse-Web-App den Home-Assistant-Treiber des Gateways mit den zu speisenden Geräten an und schalte auf der Home-Assistant-Karte des Gateways „Werte aus Home Assistant“ ein; lade danach diese Integration neu.",
+      "no_loads": "Das Gateway bietet keine Verbraucher an. Lege in der EcoPulse-Web-App die Verbraucher auf der Home-Assistant-Karte des Gateways an und schalte „Von EcoPulse geschaltete Verbraucher“ ein; lade danach diese Integration neu."
     }
   },
   "entity": {
@@ -465,6 +471,18 @@
     "input_loop": {
       "title": "Ein Home-Assistant-Eingang speist EcoPulse mit dem eigenen Wert",
       "description": "Den Eingängen des Gateways {name} sind EcoPulse-Entitäten zugeordnet ({entities}). EcoPulse bekäme seinen eigenen Wert zurück, deshalb werden sie nicht gesendet. Ordne in den Optionen der Integration andere Entitäten zu."
+    },
+    "loads_refused": {
+      "title": "{name}: EcoPulse darf keine Verbraucher mehr schalten",
+      "description": "Das Gateway hat die Antwort auf einen Schaltbefehl abgelehnt ({code}): „Von EcoPulse geschaltete Verbraucher“ ist auf der Home-Assistant-Karte des Gateways in der EcoPulse-Web-App ausgeschaltet. Das Schalten ist gestoppt; das Lesen läuft weiter. Schalte es wieder ein und lade diese Integration neu."
+    },
+    "loads_need_tls": {
+      "title": "{name}: Verbraucher brauchen die verschlüsselte Verbindung",
+      "description": "EcoPulse schaltet Home-Assistant-Verbraucher nur über die verschlüsselte Verbindung des Gateways, und dieser Eintrag liest das Gateway ohne sie. Richte den Eintrag mit der verschlüsselten Verbindung neu ein (erneut anmelden), damit EcoPulse die zugeordneten Verbraucher schalten kann."
+    },
+    "load_loop": {
+      "title": "{name}: EcoPulse-Entitäten als Verbraucher zugeordnet",
+      "description": "Entitäten von EcoPulse selbst ({entities}) können keine Verbraucher sein, die EcoPulse schaltet; sie werden ignoriert. Wähle andere Entitäten unter Konfigurieren > Von EcoPulse geschaltete Verbraucher."
     }
   }
 }

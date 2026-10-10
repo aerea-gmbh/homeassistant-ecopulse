@@ -88,7 +88,8 @@
         "title": "EcoPulse options",
         "menu_options": {
           "surplus": "Surplus available",
-          "inputs": "Values from Home Assistant"
+          "inputs": "Values from Home Assistant",
+          "loads": "Loads switched by EcoPulse"
         }
       },
       "surplus": {
@@ -110,10 +111,15 @@
       "inputs": {
         "title": "Values from Home Assistant",
         "description": "The gateway offers {count} inputs: values Home Assistant may send to EcoPulse (for example an outdoor temperature). Pick the entity that feeds each one; leave an input empty to send nothing for it. Values are converted into the input's unit and sent on every change and every 10 seconds over the encrypted connection; an input without a value for a minute counts as missing in EcoPulse. EcoPulse's own entities are not offered."
+      },
+      "loads": {
+        "title": "Loads switched by EcoPulse",
+        "description": "The gateway offers {count} loads EcoPulse may switch, for example a heating rod or a pool pump on solar surplus. Pick the switch, light, fan or input boolean EcoPulse switches for each; leave a load empty and EcoPulse cannot switch it. Commands arrive only over the encrypted connection. EcoPulse's own entities are not offered."
       }
     },
     "abort": {
-      "no_inputs": "The gateway offers no inputs. In the EcoPulse web app, add the gateway's Home Assistant driver with the devices to feed, and turn on \"Values from Home Assistant\" on the gateway's Home Assistant card; then reload this integration."
+      "no_inputs": "The gateway offers no inputs. In the EcoPulse web app, add the gateway's Home Assistant driver with the devices to feed, and turn on \"Values from Home Assistant\" on the gateway's Home Assistant card; then reload this integration.",
+      "no_loads": "The gateway offers no loads. In the EcoPulse web app, add the loads on the gateway's Home Assistant card and turn on \"Loads switched by EcoPulse\"; then reload this integration."
     }
   },
   "entity": {
@@ -465,6 +471,18 @@
     "input_loop": {
       "title": "A Home Assistant input feeds EcoPulse its own value",
       "description": "The inputs of the gateway {name} are mapped to EcoPulse entities ({entities}). EcoPulse would get its own value back, so these are not sent. Map other entities in the integration's options."
+    },
+    "loads_refused": {
+      "title": "{name}: EcoPulse may no longer switch loads",
+      "description": "The gateway refused the answer to a switch command ({code}): \"Loads switched by EcoPulse\" is off on the gateway's Home Assistant card in the EcoPulse web app. Switching stopped; reading goes on. Turn it on again and reload this integration."
+    },
+    "loads_need_tls": {
+      "title": "{name}: loads need the encrypted connection",
+      "description": "EcoPulse switches Home Assistant loads only over the gateway's encrypted connection, and this entry reads the gateway without it. Reconfigure the entry with the encrypted connection (reauthenticate) to let EcoPulse switch the mapped loads."
+    },
+    "load_loop": {
+      "title": "{name}: EcoPulse entities mapped to loads",
+      "description": "EcoPulse's own entities ({entities}) cannot be loads EcoPulse switches; they are ignored. Pick other entities under Configure > Loads switched by EcoPulse."
     }
   }
 }
