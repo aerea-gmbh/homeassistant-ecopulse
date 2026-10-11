@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN, Platform
+from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -16,39 +16,51 @@ from yarl import URL
 from .api import (
     EcoPulseApiClient,
     EcoPulseAuthError,
+    EcoPulseCertificateMismatchError,
     EcoPulseError,
     EcoPulseNotEnabledError,
     EcoPulseRateLimitedError,
+    client_for,
 )
 from .const import BACKOFF_INITIAL_SECONDS, DOMAIN, GATEWAY_MODEL, MANUFACTURER
+from .control import EcoPulseControls, async_served_controls
 from .coordinator import EcoPulseStreamCoordinator, wait_after_failure
-from .models import Catalog
+from .inputs import EcoPulseInputForwarder
+from .loads import EcoPulseLoadSwitcher
+from .models import Catalog, CatalogControl
 from .surplus import surplus_available_unique_id, surplus_source
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
+# #627: the controls' platforms, set up only for the controls an entry offers (scope and pin).
+CONTROL_PLATFORMS: list[Platform] = [Platform.NUMBER, Platform.SELECT, Platform.SWITCH]
 
 
 @dataclass(slots=True)
 class EcoPulseRuntimeData:
     client: EcoPulseApiClient
     coordinator: EcoPulseStreamCoordinator
+    inputs: EcoPulseInputForwarder
+    loads: EcoPulseLoadSwitcher
+    controls: EcoPulseControls
+    platforms: list[Platform]
 
 
 type EcoPulseConfigEntry = ConfigEntry[EcoPulseRuntimeData]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> bool:
-    client = EcoPulseApiClient(
-        async_get_clientsession(hass),
-        entry.data[CONF_HOST],
-        entry.data[CONF_PORT],
-        entry.data[CONF_TOKEN],
-    )
+    client = client_for(async_get_clientsession(hass), entry.data)
     initial_wait = 0.0
     try:
         catalog = await client.async_get_catalog()
+    except EcoPulseCertificateMismatchError as err:
+        # Contract tls.client.onMismatch: no request was sent; only the user may pin anew.
+        raise ConfigEntryAuthFailed(
+            f"The gateway presented another TLS certificate (SHA-256 {err.seen}) than the pinned "
+            "one; confirm the new fingerprint against the EcoPulse web app"
+        ) from err
     except EcoPulseAuthError as err:
         raise ConfigEntryAuthFailed("The gateway rejected the integration token") from err
     except (EcoPulseNotEnabledError, EcoPulseRateLimitedError) as err:
@@ -65,19 +77,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> 
         # DHCP handed the address to another gateway; zeroconf will bring the right address.
         raise ConfigEntryNotReady(f"Found gateway {catalog.gateway_id} at this address")
 
-    if catalog.devices or catalog.gateway_entities:
+    # #627: the controls only with the "control" scope over the pinned connection.
+    offer = await async_served_controls(client, catalog.controls)
+    controls = offer.served
+    if catalog.devices or catalog.gateway_entities or controls:
         _register_gateway_device(hass, entry, catalog)
     if catalog.devices:
-        _remove_stale_registry_entries(hass, entry, catalog)
+        _remove_stale_registry_entries(hass, entry, catalog, offer.kept)
     elif catalog.revision:  # served by the gateway, not the pending stand-in
         # Never prune on an empty catalog (a push that rendered nothing, a projection bug, the
         # pending catalog above): it would wipe every customisation and hand-enabled entity.
         _LOGGER.warning("The gateway serves no devices; keeping all existing entities")
 
     coordinator = EcoPulseStreamCoordinator(hass, entry, client, catalog)
-    entry.runtime_data = EcoPulseRuntimeData(client, coordinator)
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # #624: the catalog's input slots, fed from the entities the options map to them.
+    inputs = EcoPulseInputForwarder(hass, entry, client, catalog.inputs)
+    # #625: the catalog's loads, switched on the gateway's commands through the mapped entities.
+    loads = EcoPulseLoadSwitcher(hass, entry, client, coordinator)
+    control = EcoPulseControls(hass, entry, client, coordinator, controls)
+    platforms = PLATFORMS + [p for p in CONTROL_PLATFORMS if any(c.platform == p for c in controls)]
+    entry.runtime_data = EcoPulseRuntimeData(client, coordinator, inputs, loads, control, platforms)
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
+    loads.async_start()  # before the stream: no command of the first connection is missed
     coordinator.async_start(initial_wait)
+    inputs.async_start()
+    control.async_start()
     return True
 
 
@@ -87,13 +111,14 @@ async def async_remove_config_entry_device(
     """Allow deleting a device by hand only when the gateway no longer serves it."""
     catalog = entry.runtime_data.coordinator.catalog
     current = {catalog.gateway_id} | {d.id for d in catalog.devices}
+    current |= {c.device_id for c in entry.runtime_data.controls.controls}
     return not any(domain == DOMAIN and value in current for domain, value in device.identifiers)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EcoPulseConfigEntry) -> bool:
     # The stream task was created with entry.async_create_background_task and is cancelled
     # by Home Assistant when the entry unloads.
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    return await hass.config_entries.async_unload_platforms(entry, entry.runtime_data.platforms)
 
 
 @callback
@@ -115,10 +140,15 @@ def _register_gateway_device(hass: HomeAssistant, entry: ConfigEntry, catalog: C
 
 @callback
 def _remove_stale_registry_entries(
-    hass: HomeAssistant, entry: ConfigEntry, catalog: Catalog
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    catalog: Catalog,
+    controls: tuple[CatalogControl, ...],
 ) -> None:
     """Drop entities and devices the catalog no longer has (signal or aggregate deleted, or a
-    gateway entity the edge stopped serving, which takes the plugin's derived sensor with it)."""
+    gateway entity the edge stopped serving, which takes the plugin's derived sensor with it), and
+    the controls this entry no longer offers (#627: the scope went, or the pin; a failed /info
+    keeps them, review r1 LOW-6)."""
     entity_registry = er.async_get(hass)
     # (platform, unique id): a signal that moved sensor <-> binary_sensor keeps its unique id,
     # and its entry on the old platform would otherwise stay behind as an orphan.
@@ -126,12 +156,14 @@ def _remove_stale_registry_entries(
     current_ids |= {(e.platform, e.unique_id) for e in catalog.gateway_entities}
     if (source := surplus_source(catalog)) is not None:
         current_ids.add((Platform.BINARY_SENSOR, surplus_available_unique_id(source)))
+    current_ids |= {(c.platform, c.unique_id) for c in controls}
     for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
         if (registry_entry.domain, registry_entry.unique_id) not in current_ids:
             entity_registry.async_remove(registry_entry.entity_id)
 
     device_registry = dr.async_get(hass)
     current_devices = {catalog.gateway_id} | {device.id for device in catalog.devices}
+    current_devices |= {c.device_id for c in controls}
     for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
         identifiers = {value for domain, value in device.identifiers if domain == DOMAIN}
         if not identifiers & current_devices:

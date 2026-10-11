@@ -8,32 +8,58 @@
         "data": {
           "host": "Host",
           "port": "Port",
-          "token": "Integrationstoken"
+          "token": "Integrationstoken",
+          "use_tls": "Verschlüsselte Verbindung (TLS)",
+          "tls_port": "TLS-Port"
         },
         "data_description": {
           "host": "IP-Adresse oder Hostname des Gateways im LAN.",
-          "port": "Port des lokalen Webservers des Gateways (8080, sofern nicht geändert).",
-          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+          "port": "Port des lokalen Webservers des Gateways (8080, sofern nicht geändert). Wird ohne TLS verwendet.",
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways.",
+          "use_tls": "Empfohlen. Nötig für alles, was Home Assistant an EcoPulse schreibt; ohne sie lassen sich Werte nur lesen.",
+          "tls_port": "Port der verschlüsselten Home-Assistant-Schnittstelle des Gateways (8443, sofern nicht geändert; 18443 auf einem NAS)."
         }
       },
       "zeroconf_confirm": {
         "title": "EcoPulse-Gateway gefunden",
         "description": "Gateway {id} unter {host} gefunden. Gib seinen Home-Assistant-Integrationstoken aus der EcoPulse-Web-App ein.",
         "data": {
-          "token": "Integrationstoken"
+          "token": "Integrationstoken",
+          "use_tls": "Verschlüsselte Verbindung (TLS)",
+          "tls_port": "TLS-Port"
         },
         "data_description": {
-          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways.",
+          "use_tls": "Empfohlen. Nötig für alles, was Home Assistant an EcoPulse schreibt; ohne sie lassen sich Werte nur lesen.",
+          "tls_port": "Port der verschlüsselten Home-Assistant-Schnittstelle des Gateways (8443, sofern nicht geändert; 18443 auf einem NAS)."
         }
       },
       "reauth_confirm": {
         "title": "Token für {name} nicht mehr gültig",
-        "description": "Das Gateway hat den Integrationstoken abgelehnt, meist weil er in der EcoPulse-Web-App rotiert wurde. Gib den neuen Token ein.",
+        "description": "Das Gateway hat den Integrationstoken abgelehnt (meist, weil er in der EcoPulse-Web-App rotiert wurde), oder es weist sich mit einem anderen Zertifikat aus als dem, dem Home Assistant vertraut. Gib den Token ein.",
         "data": {
-          "token": "Integrationstoken"
+          "token": "Integrationstoken",
+          "use_tls": "Verschlüsselte Verbindung (TLS)",
+          "tls_port": "TLS-Port"
         },
         "data_description": {
-          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways."
+          "token": "Beginnt mit ecp_ha_. Das ist nicht das Web-Passwort des Gateways.",
+          "use_tls": "Empfohlen. Nötig für alles, was Home Assistant an EcoPulse schreibt; ohne sie lassen sich Werte nur lesen.",
+          "tls_port": "Port der verschlüsselten Home-Assistant-Schnittstelle des Gateways (8443, sofern nicht geändert; 18443 auf einem NAS)."
+        }
+      },
+      "tls_confirm": {
+        "title": "Zertifikat des Gateways bestätigen",
+        "description": "Das Gateway unter {host}:{port} weist sich mit einem Zertifikat mit diesem SHA-256-Fingerabdruck aus:\n\n`{fingerprint}`\n\nÖffne in der EcoPulse-Web-App die Home-Assistant-Einstellungen des Gateways und vergleiche ihn mit dem dort angezeigten Fingerabdruck. Bestätige nur, wenn beide genau übereinstimmen. Home Assistant vertraut danach nur diesem Zertifikat. Der Token wurde noch nicht gesendet.",
+        "data": {
+          "fingerprint_matches": "Der Fingerabdruck stimmt mit dem in der EcoPulse-Web-App überein"
+        }
+      },
+      "tls_changed": {
+        "title": "Achtung: Das Gateway weist sich mit einem anderen Zertifikat aus",
+        "description": "Womöglich antwortet ein anderes Gerät anstelle des Gateways unter {host}:{port}: Es weist sich mit einem anderen Zertifikat aus als dem, dem Home Assistant vertraut. Sein SHA-256-Fingerabdruck lautet:\n\n`{fingerprint}`\n\nÖffne in der EcoPulse-Web-App die Home-Assistant-Einstellungen des Gateways. Bestätige nur, wenn der dort angezeigte Fingerabdruck genau dieser ist. Weicht er ab oder zeigt die Web-App keinen an, bestätige nicht: brich ab und prüfe dein Netzwerk.",
+        "data": {
+          "fingerprint_matches": "Der Fingerabdruck stimmt mit dem in der EcoPulse-Web-App überein"
         }
       }
     },
@@ -43,7 +69,10 @@
       "invalid_token_format": "Das ist kein Integrationstoken; er muss mit ecp_ha_ beginnen.",
       "not_enabled": "Home Assistant ist für dieses Gateway nicht aktiviert oder seine Firmware ist zu alt. Aktiviere es in der EcoPulse-Web-App und warte, bis die Konfiguration das Gateway erreicht hat.",
       "rate_limited": "Zu viele Fehlversuche von dieser Adresse. Warte ein paar Minuten und versuche es erneut.",
-      "unknown": "Unerwarteter Fehler."
+      "unknown": "Unerwarteter Fehler.",
+      "cannot_connect_tls": "Keine verschlüsselte Verbindung zum Gateway möglich. Prüfe Host und TLS-Port und ob die Firmware des Gateways sie unterstützt.",
+      "certificate_mismatch": "Das Zertifikat des Gateways passt nicht zum bestätigten Fingerabdruck. Es wurde nichts gesendet. Beginne neu und vergleiche den Fingerabdruck mit der EcoPulse-Web-App.",
+      "fingerprint_not_confirmed": "Bestätige, dass der Fingerabdruck mit dem in der EcoPulse-Web-App übereinstimmt, oder brich ab."
     },
     "abort": {
       "already_configured": "Dieses Gateway ist bereits eingerichtet.",
@@ -56,6 +85,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "EcoPulse-Optionen",
+        "menu_options": {
+          "surplus": "Überschuss verfügbar",
+          "inputs": "Werte aus Home Assistant",
+          "loads": "Von EcoPulse geschaltete Verbraucher"
+        }
+      },
+      "surplus": {
         "title": "Überschuss verfügbar",
         "description": "Wann der Binärsensor „Überschuss verfügbar“ ein- und ausschaltet, abhängig vom PV-Überschuss des Gateways. Er schaltet ein, sobald der Überschuss die ganze Einschaltverzögerung lang mindestens die Schwelle erreicht hat, und aus, sobald er die ganze Ausschaltverzögerung lang unter der Schwelle minus Hysterese lag. Ein fehlender Wert zählt als kein Überschuss. Änderungen gelten sofort.",
         "data": {
@@ -70,7 +107,22 @@
           "surplus_on_delay_s": "Wie lange der Überschuss mindestens auf der Schwelle bleiben muss, bevor der Sensor einschaltet.",
           "surplus_off_delay_s": "Wie lange der Überschuss unter der Schwelle minus Hysterese liegen (oder unbekannt sein) muss, bevor der Sensor ausschaltet."
         }
+      },
+      "inputs": {
+        "title": "Werte aus Home Assistant",
+        "description": "Das Gateway bietet {count} Eingänge an: Werte, die Home Assistant an EcoPulse senden darf (zum Beispiel eine Außentemperatur). Wähle für jeden die Entität, die ihn speist; ein leerer Eingang bekommt nichts. Werte werden in die Einheit des Eingangs umgerechnet und bei jeder Änderung sowie alle 10 Sekunden über die verschlüsselte Verbindung gesendet; ein Eingang ohne Wert seit einer Minute gilt in EcoPulse als fehlend. Die eigenen Entitäten von EcoPulse werden nicht angeboten."
+      },
+      "loads": {
+        "title": "Von EcoPulse geschaltete Verbraucher",
+        "description": "Das Gateway bietet {count} Verbraucher an, die EcoPulse schalten darf, zum Beispiel einen Heizstab oder eine Poolpumpe bei Solarüberschuss. Wähle für jeden den Schalter, das Licht, den Ventilator oder den Input-Boolean, den EcoPulse dafür schaltet; bleibt ein Verbraucher leer, kann EcoPulse ihn nicht schalten. Befehle kommen nur über die verschlüsselte Verbindung. Entitäten von EcoPulse selbst werden nicht angeboten."
       }
+    },
+    "error": {
+      "entity_mapped_twice": "Die Entität {entities} ist für mehr als eine Last gewählt. Jede Last braucht ihre eigene Entität: Zwei Lasten an einer Entität würden gegeneinander schalten."
+    },
+    "abort": {
+      "no_inputs": "Das Gateway bietet keine Eingänge an. Lege in der EcoPulse-Web-App den Home-Assistant-Treiber des Gateways mit den zu speisenden Geräten an und schalte auf der Home-Assistant-Karte des Gateways „Werte aus Home Assistant“ ein; lade danach diese Integration neu.",
+      "no_loads": "Das Gateway bietet keine Verbraucher an. Lege in der EcoPulse-Web-App die Verbraucher auf der Home-Assistant-Karte des Gateways an und schalte „Von EcoPulse geschaltete Verbraucher“ ein; lade danach diese Integration neu."
     }
   },
   "entity": {
@@ -404,6 +456,63 @@
           "forced": "Anhebung erzwungen"
         }
       }
+    }
+  },
+  "issues": {
+    "inputs_refused": {
+      "title": "EcoPulse nimmt keine Werte aus Home Assistant mehr an",
+      "description": "Das Gateway {name} lehnt die Werte ab, die Home Assistant sendet ({code}). Entweder wurde „Werte aus Home Assistant“ auf der Home-Assistant-Karte des Gateways in der EcoPulse-Web-App ausgeschaltet, oder die Verbindung ist nicht verschlüsselt. Das Lesen läuft weiter. Schalte es wieder ein (oder richte die verschlüsselte Verbindung ein) und lade diese Integration neu."
+    },
+    "inputs_need_tls": {
+      "title": "Werte für EcoPulse brauchen die verschlüsselte Verbindung",
+      "description": "Den Eingängen des Gateways {name} sind Entitäten zugeordnet, aber diese Integration verbindet sich unverschlüsselt, und das Gateway nimmt Werte nur über seine verschlüsselte Verbindung an. Es wird nichts gesendet. Richte die Integration mit der verschlüsselten Verbindung neu ein (erneut anmelden und TLS einschalten)."
+    },
+    "input_unit": {
+      "title": "Ein Wert für EcoPulse lässt sich nicht umrechnen",
+      "description": "Die Entität {entity} liefert ihren Wert in {unit}, und das lässt sich nicht in {slot_unit} umrechnen, die Einheit des EcoPulse-Eingangs „{slot}“. Ihr Wert wird nicht gesendet. Ordne in den Optionen der Integration eine Entität mit umrechenbarer Einheit zu."
+    },
+    "input_loop": {
+      "title": "Ein Home-Assistant-Eingang speist EcoPulse mit dem eigenen Wert",
+      "description": "Den Eingängen des Gateways {name} sind EcoPulse-Entitäten zugeordnet ({entities}). EcoPulse bekäme seinen eigenen Wert zurück, deshalb werden sie nicht gesendet. Ordne in den Optionen der Integration andere Entitäten zu."
+    },
+    "loads_refused": {
+      "title": "{name}: EcoPulse darf keine Verbraucher mehr schalten",
+      "description": "Das Gateway hat die Antwort auf einen Schaltbefehl abgelehnt ({code}): „Von EcoPulse geschaltete Verbraucher“ ist auf der Home-Assistant-Karte des Gateways in der EcoPulse-Web-App ausgeschaltet. Das Schalten ist gestoppt; das Lesen läuft weiter. Schalte es wieder ein und lade diese Integration neu."
+    },
+    "loads_need_tls": {
+      "title": "{name}: Verbraucher brauchen die verschlüsselte Verbindung",
+      "description": "EcoPulse schaltet Home-Assistant-Verbraucher nur über die verschlüsselte Verbindung des Gateways, und dieser Eintrag liest das Gateway ohne sie. Richte den Eintrag mit der verschlüsselten Verbindung neu ein (erneut anmelden), damit EcoPulse die zugeordneten Verbraucher schalten kann."
+    },
+    "load_loop": {
+      "title": "{name}: EcoPulse-Entitäten als Verbraucher zugeordnet",
+      "description": "Entitäten von EcoPulse selbst ({entities}) können keine Verbraucher sein, die EcoPulse schaltet; sie werden ignoriert. Wähle andere Entitäten unter Konfigurieren > Von EcoPulse geschaltete Verbraucher."
+    },
+    "control_refused": {
+      "title": "{name}: Home Assistant darf EcoPulse nicht mehr steuern",
+      "description": "Das Gateway hat eine Änderung aus Home Assistant abgelehnt ({code}): Die Home-Assistant-Steuerung der Anlage wurde in der EcoPulse-Web-App ausgeschaltet, oder die Verbindung ist nicht verschlüsselt. Die Steuer-Entitäten sind nicht verfügbar; das Lesen geht weiter. Schalte sie in den Einstellungen der Anlage wieder ein und lade diese Integration neu."
+    }
+  },
+  "exceptions": {
+    "control_refused": {
+      "message": "Das Gateway hat diese Änderung abgelehnt ({code}): Der Wert liegt außerhalb dessen, was die Steuerung erlaubt (bei einem Batterie-SoC nicht unter dem Mindest-SoC der Anlage und der Stopp nicht über dem Start), oder der Assistent bietet sie nicht mehr an."
+    },
+    "control_unavailable": {
+      "message": "Das Gateway kann gerade keine Änderungen übernehmen; nichts wurde geändert. Bitte später erneut versuchen."
+    },
+    "control_invalid": {
+      "message": "Das Gateway konnte diese Änderung nicht lesen; nichts wurde geändert."
+    },
+    "control_rate_limited": {
+      "message": "Zu viele Änderungen in kurzer Zeit; das Gateway nimmt eine pro Sekunde und 30 pro Minute an. Erneut versuchen in {seconds} s."
+    },
+    "control_disabled": {
+      "message": "Home Assistant darf die Assistenten von EcoPulse nicht mehr ändern: Die Home-Assistant-Steuerung der Anlage ist in der EcoPulse-Web-App ausgeschaltet."
+    },
+    "control_needs_tls": {
+      "message": "Änderungen gehen nur über die verschlüsselte Verbindung an EcoPulse; nichts wurde gesendet."
+    },
+    "control_failed": {
+      "message": "Die Änderung hat das Gateway nicht erreicht ({error}); nichts wurde bestätigt."
     }
   }
 }

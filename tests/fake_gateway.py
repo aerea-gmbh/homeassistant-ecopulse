@@ -2,6 +2,20 @@
 
 It mirrors the edge's order of checks (ADR-230 §4): disabled -> 404, blocked -> 429, no or
 wrong token -> 401, forced status (e.g. 403) -> that status, unknown path -> 404.
+
+``POST /inputs`` (schema 5, #624) records every body and answers like the edge: 202 with the
+items whose key is a catalog slot accepted and the rest rejected ``unknown_input``, or
+``inputs_status`` (with the contract's code) when a test forces one.
+
+``POST /commands/{commandId}/ack`` (schema 6, #625) records every ack and answers 204, or
+``ack_status`` (with the contract's code) when a test forces one.
+
+``POST /control`` (schema 7, #627) records every body and answers 202 ``{applied, state}`` with the
+posted value as the state, or ``control_status`` with ``control_code`` when a test forces one.
+
+With ``tls=True`` it serves HTTPS with a self-signed ECDSA P-256 certificate of its own, like
+the gateway's TLS port (#610 S8-TLS); ``fingerprint`` is that certificate's SHA-256 in the
+contract format, and ``/info`` names it.
 """
 
 from __future__ import annotations
@@ -9,12 +23,20 @@ from __future__ import annotations
 import asyncio
 import copy
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+import hashlib
 import json
 from pathlib import Path
+import ssl
+import tempfile
 from typing import Any
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 CONTRACT_PATH = Path(__file__).parent / "fixtures" / "ha-api-contract.json"
 
@@ -40,28 +62,59 @@ class FakeGateway:
     forced_status: int | None = None
     redirect_to: str | None = None
     send_snapshot: bool = True
+    tls: bool = False
     requests: list[RecordedRequest] = field(default_factory=list)
     stream_connections: int = 0
+    fingerprint: str | None = None
+    posted_inputs: list[dict[str, Any]] = field(default_factory=list)
+    inputs_status: int | None = None
+    inputs_retry_after: int | None = None
+    acks: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    ack_status: int | None = None
+    controls: list[dict[str, Any]] = field(default_factory=list)
+    control_status: int | None = None
+    control_code: str = "out_of_bounds"
+    control_retry_after: int | None = None
 
     def __post_init__(self) -> None:
         examples = self.contract["examples"]
         self.token: str = examples["token"]["token"]
         self.info: dict[str, Any] = copy.deepcopy(examples["info"])
+        # #627 review r1 LOW-6: a status for /info alone (a transient failure, the rest answers).
+        self.info_status: int | None = None
         self.catalog: dict[str, Any] = copy.deepcopy(examples["catalog"])
         self.snapshot: dict[str, Any] = copy.deepcopy(examples["stream"]["snapshot"])
         self._queues: list[asyncio.Queue[str | None]] = []
         self._server: TestServer | None = None
         self._stream_opened = asyncio.Event()
+        self._posted = asyncio.Event()
+        self._acked = asyncio.Event()
         self._closing = False
         self._streams_ready = 0
 
     # -- lifecycle -----------------------------------------------------------------------------
 
-    async def start(self) -> None:
+    async def start(self, port: int | None = None) -> None:
         app = web.Application()
         app.router.add_get("/api/ha/v1/{tail:.*}", self._handle)
-        self._server = TestServer(app, host="127.0.0.1")
-        await self._server.start_server()
+        app.router.add_post("/api/ha/v1/{tail:.*}", self._handle)
+        self._server = TestServer(app, host="127.0.0.1", port=port)
+        context = self._new_certificate() if self.tls else None
+        await self._server.start_server(ssl=context)
+        if self.tls:
+            self.info["transport"] = {
+                "tls": True,
+                "tlsPort": self.port,
+                "certificateSha256": self.fingerprint,
+            }
+
+    async def restart_with_a_new_certificate(self) -> None:
+        """The gateway made a new certificate (its file was lost): same port, new fingerprint."""
+        port = self.port
+        assert self._server is not None
+        self.drop_streams()  # an open stream would hold the close until the client gives up
+        await self._server.close()
+        await self.start(port)
 
     async def close(self) -> None:
         # Refuse new streams first: a client reconnecting during teardown would otherwise open a
@@ -74,6 +127,36 @@ class FakeGateway:
     @property
     def host(self) -> str:
         return "127.0.0.1"
+
+    def _new_certificate(self) -> ssl.SSLContext:
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "EcoPulse EdgeGateway (test)")])
+        now = datetime.now(UTC)
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=1))
+            .not_valid_after(now + timedelta(days=365))
+            .sign(key, hashes.SHA256())
+        )
+        der = certificate.public_bytes(serialization.Encoding.DER)
+        self.fingerprint = ":".join(f"{b:02X}" for b in hashlib.sha256(der).digest())
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        with tempfile.TemporaryDirectory() as directory:
+            cert_file, key_file = Path(directory, "cert.pem"), Path(directory, "key.pem")
+            cert_file.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+            key_file.write_bytes(
+                key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.PKCS8,
+                    serialization.NoEncryption(),
+                )
+            )
+            context.load_cert_chain(cert_file, key_file)
+        return context
 
     @property
     def port(self) -> int:
@@ -138,13 +221,80 @@ class FakeGateway:
         if self.redirect_to is not None:
             raise web.HTTPFound(self.redirect_to)
         tail = request.match_info["tail"]
+        if request.method == "POST":
+            return await self._post(request, tail)
         if tail == "info":
+            if self.info_status is not None:
+                return _error(self.info_status, "forced", "Forced by the test.")
             return web.json_response(self.info)
         if tail == "catalog":
             return web.json_response(self.catalog)
         if tail == "stream":
             return await self._stream(request)
         return _error(404, "not_found", "Not found.")
+
+    async def _post(self, request: web.Request, tail: str) -> web.Response:
+        if tail == "inputs":
+            return await self._inputs(request)
+        if tail.startswith("commands/") and tail.endswith("/ack"):
+            return await self._ack(request, tail.split("/")[1])
+        if tail == "control":
+            return await self._control(request)
+        return _error(404, "not_found", "x")
+
+    async def wait_for_posts(self, count: int, timeout: float = 5) -> None:
+        async with asyncio.timeout(timeout):
+            while len(self.posted_inputs) < count:
+                self._posted.clear()
+                await self._posted.wait()
+
+    async def wait_for_acks(self, count: int, timeout: float = 5) -> None:
+        async with asyncio.timeout(timeout):
+            while len(self.acks) < count:
+                self._acked.clear()
+                await self._acked.wait()
+
+    async def _ack(self, request: web.Request, command_id: str) -> web.Response:
+        self.acks.append((command_id, await request.json()))
+        self._acked.set()
+        if self.ack_status is not None:
+            code = {403: "insufficient_scope", 404: "unknown_command"}.get(self.ack_status, "x")
+            return _error(self.ack_status, code, "x")
+        return web.Response(status=204)
+
+    async def _control(self, request: web.Request) -> web.Response:
+        body = await request.json()
+        self.controls.append(body)
+        if self.control_status is not None:
+            headers = (
+                {"Retry-After": str(self.control_retry_after)} if self.control_retry_after else None
+            )
+            return _error(self.control_status, self.control_code, "x", headers)
+        return web.json_response({"applied": True, "state": body["value"]}, status=202)
+
+    async def _inputs(self, request: web.Request) -> web.Response:
+        body = await request.json()
+        self.posted_inputs.append(body)
+        self._posted.set()
+        if self.inputs_status is not None:
+            code = {400: "invalid_request", 403: "insufficient_scope", 429: "rate_limited"}
+            headers = (
+                {"Retry-After": str(self.inputs_retry_after)} if self.inputs_retry_after else None
+            )
+            return _error(self.inputs_status, code.get(self.inputs_status, "x"), "x", headers)
+        slots = {slot["key"] for slot in self.catalog.get("inputs", [])}
+        items = body["inputs"]
+        return web.json_response(
+            {
+                "accepted": [item["key"] for item in items if item["key"] in slots],
+                "rejected": [
+                    {"key": item["key"], "code": "unknown_input"}
+                    for item in items
+                    if item["key"] not in slots
+                ],
+            },
+            status=202,
+        )
 
     async def _stream(self, request: web.Request) -> web.StreamResponse:
         # Registered before the first await, so drop_streams() always reaches this stream.

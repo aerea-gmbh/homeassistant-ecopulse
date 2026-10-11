@@ -1,4 +1,5 @@
-"""Options flow: threshold, hysteresis and delays of "Surplus available" (#623, PO 09.10.)."""
+"""Options flow: a menu (#624) whose "surplus" step holds the threshold, hysteresis and delays of
+"Surplus available" (#623, PO 09.10.). The "inputs" step is covered in test_inputs."""
 
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ecopulse.const import (
+    CONF_INPUTS,
     CONF_SURPLUS_HYSTERESIS,
     CONF_SURPLUS_OFF_DELAY,
     CONF_SURPLUS_ON_DELAY,
@@ -37,10 +39,16 @@ def no_setup() -> Generator[None]:
 
 
 async def _open(hass: HomeAssistant, config_entry: MockConfigEntry) -> dict:
-    config_entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    if hass.config_entries.async_get_entry(config_entry.entry_id) is None:
+        config_entry.add_to_hass(hass)
+    menu = await hass.config_entries.options.async_init(config_entry.entry_id)
+    assert menu["type"] is FlowResultType.MENU
+    assert menu["menu_options"] == ["surplus", "inputs", "loads"]
+    result = await hass.config_entries.options.async_configure(
+        menu["flow_id"], {"next_step_id": "surplus"}
+    )
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "init"
+    assert result["step_id"] == "surplus"
     return result
 
 
@@ -83,7 +91,21 @@ async def test_saving_stores_whole_numbers_and_the_form_shows_them_next_time(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert config_entry.options == VALID
     assert all(type(value) is int for value in config_entry.options.values())
-    assert _suggested(await hass.config_entries.options.async_init(config_entry.entry_id)) == VALID
+    assert _suggested(await _open(hass, config_entry)) == VALID
+
+
+# #624: the menu's two steps write one options dict; saving one keeps the other's settings.
+async def test_saving_the_surplus_settings_keeps_the_input_mapping(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    mapping = {"6a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d": "sensor.outdoor"}
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(config_entry, options={CONF_INPUTS: mapping})
+    result = await _open(hass, config_entry)
+
+    await hass.config_entries.options.async_configure(result["flow_id"], VALID)
+
+    assert config_entry.options == {**VALID, CONF_INPUTS: mapping}
 
 
 @pytest.mark.parametrize(

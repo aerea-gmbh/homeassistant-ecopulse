@@ -8,32 +8,58 @@
         "data": {
           "host": "Host",
           "port": "Port",
-          "token": "Integration token"
+          "token": "Integration token",
+          "use_tls": "Encrypted connection (TLS)",
+          "tls_port": "TLS port"
         },
         "data_description": {
           "host": "IP address or host name of the gateway on your LAN.",
-          "port": "Port of the gateway's local web server (8080 unless changed).",
-          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+          "port": "Port of the gateway's local web server (8080 unless changed). Used without TLS.",
+          "token": "Starts with ecp_ha_. This is not the gateway's web password.",
+          "use_tls": "Recommended. Required for anything Home Assistant writes to EcoPulse; without it, values can only be read.",
+          "tls_port": "Port of the gateway's encrypted Home Assistant API (8443 unless changed; 18443 on a NAS)."
         }
       },
       "zeroconf_confirm": {
         "title": "EcoPulse gateway found",
         "description": "Found gateway {id} at {host}. Enter its Home Assistant integration token from the EcoPulse web app.",
         "data": {
-          "token": "Integration token"
+          "token": "Integration token",
+          "use_tls": "Encrypted connection (TLS)",
+          "tls_port": "TLS port"
         },
         "data_description": {
-          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+          "token": "Starts with ecp_ha_. This is not the gateway's web password.",
+          "use_tls": "Recommended. Required for anything Home Assistant writes to EcoPulse; without it, values can only be read.",
+          "tls_port": "Port of the gateway's encrypted Home Assistant API (8443 unless changed; 18443 on a NAS)."
         }
       },
       "reauth_confirm": {
         "title": "Token for {name} no longer valid",
-        "description": "The gateway rejected the integration token, usually because it was rotated in the EcoPulse web app. Enter the new token.",
+        "description": "The gateway rejected the integration token (usually because it was rotated in the EcoPulse web app), or it presented another certificate than the one Home Assistant trusts. Enter the token.",
         "data": {
-          "token": "Integration token"
+          "token": "Integration token",
+          "use_tls": "Encrypted connection (TLS)",
+          "tls_port": "TLS port"
         },
         "data_description": {
-          "token": "Starts with ecp_ha_. This is not the gateway's web password."
+          "token": "Starts with ecp_ha_. This is not the gateway's web password.",
+          "use_tls": "Recommended. Required for anything Home Assistant writes to EcoPulse; without it, values can only be read.",
+          "tls_port": "Port of the gateway's encrypted Home Assistant API (8443 unless changed; 18443 on a NAS)."
+        }
+      },
+      "tls_confirm": {
+        "title": "Confirm the gateway's certificate",
+        "description": "The gateway at {host}:{port} presents a certificate with this SHA-256 fingerprint:\n\n`{fingerprint}`\n\nOpen the gateway's Home Assistant settings in the EcoPulse web app and compare it with the fingerprint shown there. Confirm only if both match exactly. Home Assistant will then trust only this certificate. The token has not been sent yet.",
+        "data": {
+          "fingerprint_matches": "The fingerprint matches the one in the EcoPulse web app"
+        }
+      },
+      "tls_changed": {
+        "title": "Warning: the gateway presents another certificate",
+        "description": "Another device may be answering in place of the gateway at {host}:{port}: it presents a different certificate than the one Home Assistant trusts. Its SHA-256 fingerprint is:\n\n`{fingerprint}`\n\nOpen the gateway's Home Assistant settings in the EcoPulse web app. Confirm only if the fingerprint shown there is exactly this one. If it differs, or the web app shows none, do not confirm: cancel and check your network.",
+        "data": {
+          "fingerprint_matches": "The fingerprint matches the one in the EcoPulse web app"
         }
       }
     },
@@ -43,7 +69,10 @@
       "invalid_token_format": "This is not an integration token; it must start with ecp_ha_.",
       "not_enabled": "Home Assistant is not enabled for this gateway, or its firmware is too old. Enable it in the EcoPulse web app and wait for the configuration to reach the gateway.",
       "rate_limited": "Too many failed attempts from this address. Wait a few minutes and try again.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "cannot_connect_tls": "Cannot open an encrypted connection to the gateway. Check the host and the TLS port, and that the gateway's firmware supports it.",
+      "certificate_mismatch": "The gateway's certificate does not match the confirmed fingerprint. Nothing was sent. Start again and compare the fingerprint with the EcoPulse web app.",
+      "fingerprint_not_confirmed": "Confirm that the fingerprint matches the one in the EcoPulse web app, or cancel."
     },
     "abort": {
       "already_configured": "This gateway is already configured.",
@@ -56,6 +85,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "EcoPulse options",
+        "menu_options": {
+          "surplus": "Surplus available",
+          "inputs": "Values from Home Assistant",
+          "loads": "Loads switched by EcoPulse"
+        }
+      },
+      "surplus": {
         "title": "Surplus available",
         "description": "When the binary sensor \"Surplus available\" turns on and off, based on the gateway's solar excess power. It turns on once the excess has been at least the threshold for the whole on-delay, and off once it has been below the threshold minus the hysteresis for the whole off-delay. A missing value counts as no surplus. Changes apply immediately.",
         "data": {
@@ -70,7 +107,22 @@
           "surplus_on_delay_s": "How long the excess must stay at or above the threshold before the sensor turns on.",
           "surplus_off_delay_s": "How long the excess must stay below the threshold minus the hysteresis (or be unknown) before the sensor turns off."
         }
+      },
+      "inputs": {
+        "title": "Values from Home Assistant",
+        "description": "The gateway offers {count} inputs: values Home Assistant may send to EcoPulse (for example an outdoor temperature). Pick the entity that feeds each one; leave an input empty to send nothing for it. Values are converted into the input's unit and sent on every change and every 10 seconds over the encrypted connection; an input without a value for a minute counts as missing in EcoPulse. EcoPulse's own entities are not offered."
+      },
+      "loads": {
+        "title": "Loads switched by EcoPulse",
+        "description": "The gateway offers {count} loads EcoPulse may switch, for example a heating rod or a pool pump on solar surplus. Pick the switch, light, fan or input boolean EcoPulse switches for each; leave a load empty and EcoPulse cannot switch it. Commands arrive only over the encrypted connection. EcoPulse's own entities are not offered."
       }
+    },
+    "error": {
+      "entity_mapped_twice": "The entity {entities} is picked for more than one load. Each load needs its own entity: two loads on one entity would switch against each other."
+    },
+    "abort": {
+      "no_inputs": "The gateway offers no inputs. In the EcoPulse web app, add the gateway's Home Assistant driver with the devices to feed, and turn on \"Values from Home Assistant\" on the gateway's Home Assistant card; then reload this integration.",
+      "no_loads": "The gateway offers no loads. In the EcoPulse web app, add the loads on the gateway's Home Assistant card and turn on \"Loads switched by EcoPulse\"; then reload this integration."
     }
   },
   "entity": {
@@ -404,6 +456,63 @@
           "forced": "Boost forced"
         }
       }
+    }
+  },
+  "issues": {
+    "inputs_refused": {
+      "title": "EcoPulse no longer accepts values from Home Assistant",
+      "description": "The gateway {name} refused the values Home Assistant sends ({code}). Either \"Values from Home Assistant\" was turned off on the gateway's Home Assistant card in the EcoPulse web app, or the connection is not encrypted. Reading values goes on. Turn it on again (or set up the encrypted connection), then reload this integration."
+    },
+    "inputs_need_tls": {
+      "title": "Values for EcoPulse need the encrypted connection",
+      "description": "Entities are mapped to the inputs of the gateway {name}, but this integration connects without encryption, and the gateway accepts values only over its encrypted connection. Nothing is sent. Reconfigure the integration with the encrypted connection (reauthenticate and turn on TLS)."
+    },
+    "input_unit": {
+      "title": "A value for EcoPulse cannot be converted",
+      "description": "The entity {entity} reports its value in {unit}, which cannot be converted into {slot_unit}, the unit of the EcoPulse input \"{slot}\". Its value is not sent. Map an entity with a convertible unit in the integration's options."
+    },
+    "input_loop": {
+      "title": "A Home Assistant input feeds EcoPulse its own value",
+      "description": "The inputs of the gateway {name} are mapped to EcoPulse entities ({entities}). EcoPulse would get its own value back, so these are not sent. Map other entities in the integration's options."
+    },
+    "loads_refused": {
+      "title": "{name}: EcoPulse may no longer switch loads",
+      "description": "The gateway refused the answer to a switch command ({code}): \"Loads switched by EcoPulse\" is off on the gateway's Home Assistant card in the EcoPulse web app. Switching stopped; reading goes on. Turn it on again and reload this integration."
+    },
+    "loads_need_tls": {
+      "title": "{name}: loads need the encrypted connection",
+      "description": "EcoPulse switches Home Assistant loads only over the gateway's encrypted connection, and this entry reads the gateway without it. Reconfigure the entry with the encrypted connection (reauthenticate) to let EcoPulse switch the mapped loads."
+    },
+    "load_loop": {
+      "title": "{name}: EcoPulse entities mapped to loads",
+      "description": "EcoPulse's own entities ({entities}) cannot be loads EcoPulse switches; they are ignored. Pick other entities under Configure > Loads switched by EcoPulse."
+    },
+    "control_refused": {
+      "title": "{name}: Home Assistant may no longer control EcoPulse",
+      "description": "The gateway refused a change from Home Assistant ({code}): the plant's Home Assistant control was turned off in the EcoPulse web app, or the connection is not encrypted. The control entities are unavailable; reading goes on. Turn it on again in the plant's settings and reload this integration."
+    }
+  },
+  "exceptions": {
+    "control_refused": {
+      "message": "The gateway refused this change ({code}): the value is outside what the control allows (for a battery SoC, not below the plant's minimum SoC and the stop not above the start), or the assistant no longer offers it."
+    },
+    "control_unavailable": {
+      "message": "The gateway cannot take changes right now; nothing was changed. Try again later."
+    },
+    "control_invalid": {
+      "message": "The gateway could not read this change; nothing was changed."
+    },
+    "control_rate_limited": {
+      "message": "Too many changes in a short time; the gateway takes one per second and 30 per minute. Try again in {seconds} s."
+    },
+    "control_disabled": {
+      "message": "Home Assistant may no longer change EcoPulse's assistants: the plant's Home Assistant control is off in the EcoPulse web app."
+    },
+    "control_needs_tls": {
+      "message": "Changes go to EcoPulse only over the encrypted connection; nothing was sent."
+    },
+    "control_failed": {
+      "message": "The change did not reach the gateway ({error}); nothing was confirmed."
     }
   }
 }

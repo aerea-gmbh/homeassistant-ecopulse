@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
+from unittest.mock import patch
 
 import aiohttp
 import pytest
@@ -25,8 +26,15 @@ async def session() -> AsyncGenerator[aiohttp.ClientSession]:
         yield client_session
 
 
+@pytest.fixture
+def short_dead_timeout() -> Generator[None]:
+    """The contract's 45 s "no byte = dead" shrunk to 0.3 s."""
+    with patch("custom_components.ecopulse.api.STREAM_DEAD_AFTER_SECONDS", 0.3):
+        yield
+
+
 def _client(
-    session: aiohttp.ClientSession, gateway: FakeGateway, token: str | None = None, **kwargs: float
+    session: aiohttp.ClientSession, gateway: FakeGateway, token: str | None = None, **kwargs: str
 ) -> EcoPulseApiClient:
     return EcoPulseApiClient(session, gateway.host, gateway.port, token or gateway.token, **kwargs)
 
@@ -136,17 +144,34 @@ async def test_stream_yields_the_snapshot_then_pushed_events(
     assert gateway.requests[-1].authorization == f"Bearer {gateway.token}"
 
 
+# Review r2 LOW-A: the client's own rule, behind the switcher's (which asks only with a pin): a
+# stream in the clear never asks for commands, whatever the caller says.
+async def test_a_stream_in_the_clear_never_asks_for_commands_even_when_told_to(
+    session: aiohttp.ClientSession, gateway: FakeGateway
+) -> None:
+    async def consume() -> None:
+        async for _event in _client(session, gateway).async_stream(commands=True):
+            return
+
+    await asyncio.wait_for(consume(), 5)
+
+    assert gateway.requests[-1].path.endswith("/stream")
+    assert gateway.requests[-1].query == {}
+
+
+@pytest.mark.usefixtures("short_dead_timeout")
 async def test_stream_silence_beyond_the_dead_timeout_raises(
     session: aiohttp.ClientSession, gateway: FakeGateway
 ) -> None:
     async def consume() -> None:
-        async for _ in _client(session, gateway, stream_dead_after=0.2).async_stream():
+        async for _ in _client(session, gateway).async_stream():
             pass
 
     with pytest.raises(EcoPulseConnectionError):
         await asyncio.wait_for(consume(), 5)
 
 
+@pytest.mark.usefixtures("short_dead_timeout")
 async def test_pings_keep_a_quiet_stream_alive(
     session: aiohttp.ClientSession, gateway: FakeGateway
 ) -> None:
@@ -163,7 +188,7 @@ async def test_pings_keep_a_quiet_stream_alive(
         gateway.drop_streams()
 
     async def consume() -> None:
-        async for _ in _client(session, gateway, stream_dead_after=0.3).async_stream():
+        async for _ in _client(session, gateway).async_stream():
             pass
 
     ping_task = asyncio.create_task(pinger())

@@ -21,8 +21,8 @@ data path, no MQTT broker, no polling.
 - A device whose source stops answering turns *unavailable*; everything turns unavailable while the gateway is
   unreachable, and the integration reconnects by itself.
 
-Read-only in this version. Using Home Assistant entities as inputs for EcoPulse and controlling EcoPulse from Home
-Assistant are planned.
+Beyond reading, Home Assistant can feed values into EcoPulse, EcoPulse can switch Home Assistant loads, and Home
+Assistant can change EcoPulse's assistants (all over the encrypted connection, see below).
 
 ## Solar excess and "Surplus available"
 
@@ -40,7 +40,8 @@ entities for your own automations:
   automation waiting for "off" still fires. Its state survives a Home Assistant restart.
 
 Set threshold (default 500 W), hysteresis (default 100 W), on-delay and off-delay (default 120 s each) under
-*Settings > Devices & services > EcoPulse > Configure*. Changes apply immediately, without a restart.
+*Settings > Devices & services > EcoPulse > Configure > Surplus available*. Changes apply immediately, without a
+restart.
 
 Example: run the pool pump on surplus.
 
@@ -139,6 +140,76 @@ one state, each with its `start`, `state` and (battery) the `soc` planned at its
 runs out. A gateway shows one plan per kind, that of its enabled optimizer with the lowest id; the states and names
 are translated (English, German).
 
+## Values from Home Assistant into EcoPulse
+
+Home Assistant can send values EcoPulse has no device for, for example an outdoor temperature from your weather
+station or a meter Home Assistant reads. EcoPulse stores and uses them like its own measurements: in the history,
+the live view and as input of its assistants.
+
+1. In the EcoPulse web app, add a **Home Assistant** driver to the gateway and the devices to feed on it (each
+   numeric or on/off value of such a device becomes an *input*), and turn on **Values from Home Assistant** on the
+   gateway's Home Assistant card.
+2. Reload the EcoPulse entry in Home Assistant, then *Configure > Values from Home Assistant*: pick the entity that
+   feeds each input (sensors, numbers and input numbers for a number; binary sensors, input booleans and switches for
+   on/off). EcoPulse's own entities are not offered.
+
+The integration sends every mapped value on each change and every 10 seconds (EcoPulse stamps its own receive time,
+so a value that is not re-sent goes stale). Values are converted into the input's unit (°F into °C, kW into W);
+an entity whose unit cannot be converted is not sent and a **repair issue** names it. `unavailable` and `unknown`
+are sent as "no value". An input without a value for a minute counts as missing in EcoPulse: it shows a driver
+problem there, and its assistants stop using the value; there is no substitute value.
+
+Values are sent **only over the encrypted connection**. An entry without it sends nothing and shows a repair issue.
+When the gateway refuses the values (the toggle in the web app was turned off), the integration stops sending them,
+shows a repair issue and keeps reading; reload the entry after turning the toggle on again.
+
+## Loads switched by EcoPulse
+
+EcoPulse can switch devices through Home Assistant, for example a heating rod or a pool pump on solar surplus. Its
+PV heater assistant switches them like relays: with its priority, minimum on and off times and delays.
+
+1. In the EcoPulse web app, create the device on the gateway's **Home Assistant** driver, add it as a **load** with its
+   nominal power on the gateway's Home Assistant card, and turn on **Loads switched by EcoPulse** there. Build the
+   heater assistant's levels from the loads.
+2. Reload the EcoPulse entry in Home Assistant, then *Configure > Loads switched by EcoPulse*: pick the switch, light,
+   fan or input boolean EcoPulse switches for each load. EcoPulse's own entities are not offered, and one entity can
+   serve only one load.
+
+When EcoPulse switches a load, the integration calls the entity's `turn_on` or `turn_off` and reports the result (and
+the entity's state) back to the gateway. A load nobody mapped, a service that fails or takes longer than 8 s, and an
+entity Home Assistant does not have or reports unavailable are reported as failed, and EcoPulse's assistant shows why.
+Commands for one entity run one after the other; when several wait, only the latest runs, so a slow `turn_on` never
+ends after a later `turn_off`. Without a power sensor, EcoPulse counts the load's nominal power as its consumption
+while it is on; map a power sensor as a value from Home Assistant to the load's device and bind it to the heater to
+measure it instead.
+
+Commands are taken **only over the encrypted connection**; an entry without it never switches anything and shows a
+repair issue. There is no timeout on the Home Assistant side: when the gateway or the connection goes away, the
+entity keeps its state, and EcoPulse sends its command again after the reconnect. When the gateway refuses the answer
+to a command (the toggle in the web app was turned off), the integration stops switching, shows a repair issue and
+keeps reading; reload the entry after turning the toggle on again.
+
+## Controlling EcoPulse from Home Assistant
+
+A plant's owner (or anyone who may manage it) can allow Home Assistant to change the plant's assistants: turn on
+**Home Assistant control** in the plant's settings in the EcoPulse web app (offered once the gateway reports its
+encrypted connection), then reload the EcoPulse entry. Each PV wallbox and PV heater assistant then gets, on its own
+device:
+
+- **Mode** (`select`): e.g. off, fast or PV excess;
+- **Enabled** (`switch`);
+- **Battery support start** and **Battery support stop** (`number`, %): never below the plant's minimum SoC, and the
+  stop never above the start.
+
+The battery-SoC switch assistant gets its mode and enabled switch. The state comes from the gateway and follows any
+change, also one made in EcoPulse. A change you make here is applied by the gateway, logged there, and taken over by
+EcoPulse into the assistant's settings, marked "via Home Assistant", so the next configuration from the cloud keeps it.
+
+Controls exist **only over the encrypted connection** and only while the plant allows it. The gateway takes at most one
+change per second and 30 per minute; a refused change (a value outside the bounds, too many changes) is shown as an
+error and not repeated. When the plant's control is turned off, the gateway refuses the next change: the entities turn
+unavailable, a repair issue says why, and reading goes on; after a reload they are gone.
+
 ## Alarms
 
 Your EcoPulse alarm rules show up on the gateway device as problem sensors, so an automation can react to an alarm
@@ -160,7 +231,8 @@ The alarm list and `synced_at` are kept out of the recorder.
 
 - Home Assistant **2025.10** or newer.
 - An EcoPulse EdgeGateway with firmware that offers the Home Assistant API (`/api/ha/v1`), its **local web
-  server enabled**, and Home Assistant reachable on the same network as the gateway (port 8080 by default).
+  server enabled**, and Home Assistant reachable on the same network as the gateway (port 8080 by default, and
+  8443 for the encrypted connection; 18443 on a NAS).
 
 ## Installation via HACS
 
@@ -180,18 +252,37 @@ configuration and restart.
 3. In Home Assistant: *Settings > Devices & services*. If the gateway was discovered on your network, click
    *Configure* on it and paste the token. Otherwise *Add integration > EcoPulse* and enter the gateway's IP address
    (or host name), the port (8080 unless changed) and the token.
+4. **Encrypted connection (on by default).** Home Assistant connects to the gateway's TLS port (8443 unless changed)
+   and shows the **SHA-256 fingerprint** of the certificate the gateway presents. Compare it with the fingerprint in
+   the gateway's Home Assistant settings in the EcoPulse web app and confirm only if both match exactly. The token is
+   sent only after that, and from then on Home Assistant trusts only this certificate. Without the encrypted
+   connection the integration can only read values; anything it writes to EcoPulse later needs it.
 
 One config entry per gateway; a plant with several gateways is added once per gateway.
 
 **Rotating the token**: create a new token in the EcoPulse web app. The old one stops working immediately and Home
-Assistant asks you to re-authenticate the EcoPulse entry; paste the new token there.
+Assistant asks you to re-authenticate the EcoPulse entry; paste the new token there. An entry without the encrypted
+connection is offered to switch to it there.
+
+**A new gateway certificate**: the gateway keeps its certificate across restarts and updates. Should it ever present
+another one, Home Assistant sends nothing to it and asks you to re-authenticate; it then shows the new fingerprint to
+compare with the EcoPulse web app again. Another fingerprint than the web app's means another device is answering:
+do not confirm it.
 
 ## Security notes
 
-- The token can only **read** the values of this one gateway. It cannot change the gateway's configuration and
+- The token can only **read** the values of this one gateway, plus, if you turn on *Values from Home Assistant* in
+  the EcoPulse web app, send values into the inputs EcoPulse defined, and, with *Loads switched by EcoPulse*, answer
+  the gateway's switch commands. The entities EcoPulse switches are only the ones you map, with Home Assistant's own
+  services. It cannot change the gateway's configuration and
   does not open its web interface.
-- The connection is plain HTTP on your LAN, as the gateway's web interface. Someone who can sniff your LAN can
-  read the token and with it the values.
+- With the encrypted connection the token and the values travel over TLS, and the entry is pinned to the gateway's
+  certificate: it never falls back to plain HTTP. Without it the connection is plain HTTP on your LAN, as the
+  gateway's web interface, and someone who can sniff your LAN can read the token and with it the values; that is
+  why the gateway accepts anything that writes only over the encrypted connection.
+- A discovery announcement never moves a configured gateway on its own (anyone on the LAN can announce a gateway's
+  id): an entry with the encrypted connection follows a new address only if that address presents the trusted
+  certificate; an entry without it keeps its address until you change it.
 - Repeated wrong tokens lock the client out for a while (HTTP 429). The setup form refuses anything that does not
   look like an integration token before it contacts the gateway.
 

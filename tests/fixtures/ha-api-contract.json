@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 7,
   "apiVersion": 1,
   "basePath": "/api/ha/v1",
   "auth": {
@@ -15,6 +15,7 @@
   "scopes": [
     "read",
     "inputs",
+    "loads",
     "control"
   ],
   "endpoints": [
@@ -32,26 +33,26 @@
       "method": "GET",
       "path": "/stream",
       "scope": "read"
+    },
+    {
+      "method": "POST",
+      "path": "/inputs",
+      "scope": "inputs"
+    },
+    {
+      "method": "POST",
+      "path": "/commands/{commandId}/ack",
+      "scope": "loads"
+    },
+    {
+      "method": "POST",
+      "path": "/control",
+      "scope": "control"
     }
   ],
   "reserved": {
-    "endpoints": [
-      {
-        "method": "POST",
-        "path": "/inputs",
-        "scope": "inputs",
-        "slice": "S5"
-      },
-      {
-        "method": "POST",
-        "path": "/control",
-        "scope": "control",
-        "slice": "S8"
-      }
-    ],
-    "streamEvents": [
-      "command"
-    ]
+    "endpoints": [],
+    "streamEvents": []
   },
   "errors": [
     {
@@ -73,6 +74,41 @@
       "status": 429,
       "code": "rate_limited",
       "client": "honour-retry-after"
+    },
+    {
+      "status": 403,
+      "code": "tls_required",
+      "client": "reauth"
+    },
+    {
+      "status": 400,
+      "code": "invalid_request",
+      "client": "drop-request"
+    },
+    {
+      "status": 404,
+      "code": "unknown_command",
+      "client": "drop-request"
+    },
+    {
+      "status": 422,
+      "code": "out_of_bounds",
+      "client": "drop-request"
+    },
+    {
+      "status": 422,
+      "code": "unknown_target",
+      "client": "drop-request"
+    },
+    {
+      "status": 422,
+      "code": "not_allowed",
+      "client": "drop-request"
+    },
+    {
+      "status": 503,
+      "code": "unavailable",
+      "client": "drop-request"
     }
   ],
   "errorProperties": [
@@ -83,13 +119,35 @@
     "actions": [
       "reauth",
       "retry-later",
-      "honour-retry-after"
+      "honour-retry-after",
+      "drop-request",
+      "disable-route"
     ],
     "retryLaterSeconds": 300,
     "backoffInitialSeconds": 1,
     "backoffMaxSeconds": 60,
     "onSnapshotRevisionMismatch": "refetch",
-    "onUnknownValueId": "ignore"
+    "onUnknownValueId": "ignore",
+    "routeErrors": [
+      {
+        "method": "POST",
+        "path": "/inputs",
+        "status": 403,
+        "client": "disable-route"
+      },
+      {
+        "method": "POST",
+        "path": "/commands/{commandId}/ack",
+        "status": 403,
+        "client": "disable-route"
+      },
+      {
+        "method": "POST",
+        "path": "/control",
+        "status": 403,
+        "client": "disable-route"
+      }
+    ]
   },
   "info": {
     "properties": [
@@ -99,7 +157,8 @@
       "gatewayName",
       "firmwareVersion",
       "catalogRevision",
-      "scopes"
+      "scopes",
+      "transport"
     ]
   },
   "catalog": {
@@ -107,7 +166,10 @@
       "apiVersion",
       "catalogRevision",
       "gateway",
-      "devices"
+      "devices",
+      "inputs",
+      "loads",
+      "controls"
     ],
     "gatewayProperties": [
       "id",
@@ -658,7 +720,8 @@
       "snapshot",
       "values",
       "availability",
-      "catalog"
+      "catalog",
+      "command"
     ],
     "eventProperties": {
       "snapshot": [
@@ -674,6 +737,12 @@
       ],
       "catalog": [
         "catalogRevision"
+      ],
+      "command": [
+        "commandId",
+        "load",
+        "action",
+        "issuedAt"
       ]
     },
     "valueProperties": [
@@ -730,7 +799,10 @@
       "enabled",
       "gatewayName",
       "token",
-      "devices"
+      "devices",
+      "inputs",
+      "loads",
+      "controls"
     ],
     "tokenProperties": [
       "hash",
@@ -769,6 +841,310 @@
       "path"
     ]
   },
+  "tls": {
+    "defaultPort": 8443,
+    "scopesRequiringTls": [
+      "inputs",
+      "loads",
+      "control"
+    ],
+    "served": "base-path-only",
+    "certificate": {
+      "keyAlgorithm": "ecdsa-p256",
+      "selfSigned": true,
+      "validityYears": 20,
+      "reissue": "only-when-missing-or-unusable"
+    },
+    "fingerprint": {
+      "algorithm": "sha256",
+      "over": "der-certificate",
+      "format": "uppercase-hex-colon-separated",
+      "pattern": "^[0-9A-F]{2}(:[0-9A-F]{2}){31}$"
+    },
+    "transportProperties": [
+      "tls",
+      "tlsPort",
+      "certificateSha256"
+    ],
+    "beatProperty": "homeAssistantTls",
+    "beatProperties": [
+      "port",
+      "certificateSha256"
+    ],
+    "client": {
+      "pin": "certificate-sha256",
+      "firstPin": "confirm-against-cloud",
+      "onMismatch": "reauth",
+      "fallbackToPlainHttp": false
+    }
+  },
+  "inputs": {
+    "driverType": "home-assistant",
+    "keyTemplate": "{edgeEntityId}.{datapointKey}",
+    "dataTypes": [
+      "number",
+      "boolean"
+    ],
+    "requestProperties": [
+      "inputs"
+    ],
+    "itemProperties": [
+      "key",
+      "value",
+      "unit"
+    ],
+    "optionalItemProperties": [
+      "unit"
+    ],
+    "maxItemsPerRequest": 100,
+    "maxBodyBytes": 32768,
+    "nullValue": "no-sample",
+    "timestamp": "edge-receive-time",
+    "responseStatus": 202,
+    "responseProperties": [
+      "accepted",
+      "rejected"
+    ],
+    "rejectedProperties": [
+      "key",
+      "code"
+    ],
+    "rejectCodes": [
+      "unknown_input",
+      "type_mismatch",
+      "unit_mismatch",
+      "not_finite",
+      "not_running"
+    ],
+    "postRateLimit": {
+      "requests": 5,
+      "windowSeconds": 1
+    },
+    "repostSeconds": 10,
+    "defaultStaleAfterSeconds": 60,
+    "onStale": "driver-fault-no-sample",
+    "catalogProperties": [
+      "key",
+      "uniqueId",
+      "name",
+      "deviceName",
+      "unit",
+      "dataType",
+      "staleAfterSeconds"
+    ],
+    "nullableCatalogProperties": [
+      "unit"
+    ],
+    "blockProperties": [
+      "driverId",
+      "key",
+      "uniqueId",
+      "name",
+      "deviceName",
+      "unit",
+      "dataType",
+      "staleAfterSeconds"
+    ]
+  },
+  "loads": {
+    "driverType": "home-assistant",
+    "actions": [
+      "on",
+      "off"
+    ],
+    "entityDomains": [
+      "switch",
+      "input_boolean",
+      "light",
+      "fan"
+    ],
+    "commandProperties": [
+      "commandId",
+      "load",
+      "action",
+      "issuedAt"
+    ],
+    "commandIdPattern": "^[0-9a-f]{32}$",
+    "ackProperties": [
+      "ok",
+      "state",
+      "error"
+    ],
+    "optionalAckProperties": [
+      "error"
+    ],
+    "nullableAckProperties": [
+      "state"
+    ],
+    "maxErrorLength": 256,
+    "ackBodyMaxBytes": 1024,
+    "ackResponseStatus": 204,
+    "ackTimeoutSeconds": 10,
+    "delivery": "all-command-streams-first-success-wins",
+    "commandStreams": "tls-with-loads-scope-opted-in",
+    "commandOptIn": {
+      "parameter": "commands",
+      "value": "1"
+    },
+    "applyWhileWaiting": "pending-until-answered",
+    "onNoCommandStream": "apply-fails",
+    "onOutage": "keep-state-reapply-on-reconnect",
+    "catalogProperties": [
+      "key",
+      "uniqueId",
+      "name",
+      "channel",
+      "nominalPowerW"
+    ],
+    "blockProperties": [
+      "driverId",
+      "key",
+      "uniqueId",
+      "name",
+      "channel",
+      "nominalPowerW"
+    ]
+  },
+  "control": {
+    "actions": [
+      {
+        "name": "mode",
+        "platform": "select"
+      },
+      {
+        "name": "enabled",
+        "platform": "switch"
+      },
+      {
+        "name": "battery_support_start_soc",
+        "platform": "number"
+      },
+      {
+        "name": "battery_support_stop_soc",
+        "platform": "number"
+      }
+    ],
+    "platforms": [
+      "select",
+      "switch",
+      "number"
+    ],
+    "assistantModels": [
+      {
+        "model": "pv-excess-wallbox",
+        "actions": [
+          "mode",
+          "enabled",
+          "battery_support_start_soc",
+          "battery_support_stop_soc"
+        ]
+      },
+      {
+        "model": "pv-excess-heater",
+        "actions": [
+          "mode",
+          "enabled",
+          "battery_support_start_soc",
+          "battery_support_stop_soc"
+        ]
+      },
+      {
+        "model": "battery-soc-switch",
+        "actions": [
+          "mode",
+          "enabled"
+        ]
+      }
+    ],
+    "uniqueIdTemplate": "{assistantUniqueId}:{action}",
+    "requestProperties": [
+      "action",
+      "assistantId",
+      "value"
+    ],
+    "maxBodyBytes": 1024,
+    "responseStatus": 202,
+    "responseProperties": [
+      "applied",
+      "state"
+    ],
+    "refusalStatus": 422,
+    "refusalCodes": [
+      "out_of_bounds",
+      "unknown_target",
+      "not_allowed"
+    ],
+    "rateLimits": [
+      {
+        "requests": 1,
+        "windowSeconds": 1
+      },
+      {
+        "requests": 30,
+        "windowSeconds": 60
+      }
+    ],
+    "soc": {
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "floor": "plant-min-soc",
+      "stopNotAboveStart": true
+    },
+    "state": "stream-value",
+    "catalogProperties": [
+      "uniqueId",
+      "assistantId",
+      "action",
+      "platform",
+      "name",
+      "deviceId",
+      "deviceName",
+      "options",
+      "min",
+      "max",
+      "step",
+      "unit",
+      "stateValueId"
+    ],
+    "nullableCatalogProperties": [
+      "options",
+      "min",
+      "max",
+      "step",
+      "unit"
+    ],
+    "blockProperties": [
+      "uniqueId",
+      "assistantId",
+      "action",
+      "platform",
+      "name",
+      "deviceId",
+      "deviceName",
+      "options",
+      "min",
+      "max",
+      "step",
+      "unit"
+    ],
+    "audit": {
+      "beatProperty": "homeAssistantControl",
+      "beatProperties": [
+        "actions"
+      ],
+      "actionProperties": [
+        "at",
+        "assistantId",
+        "action",
+        "value"
+      ],
+      "ringSize": 20,
+      "log": "one-line-per-request"
+    },
+    "conflict": "cloud-adopts-newest-writer"
+  },
   "examples": {
     "token": {
       "token": "ecp_ha_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
@@ -782,7 +1158,10 @@
           "hash": "e81483dd1b0e7b23e1d904d63e63f9371229b5d2a1440d0bdcda220c7c7a3ca6",
           "algorithm": "sha256",
           "scopes": [
-            "read"
+            "read",
+            "inputs",
+            "loads",
+            "control"
           ]
         },
         "devices": [
@@ -877,6 +1256,96 @@
               }
             ]
           }
+        ],
+        "inputs": [
+          {
+            "driverId": "home-assistant",
+            "key": "weather.outdoorTemperature",
+            "uniqueId": "6a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+            "name": "Outdoor temperature",
+            "deviceName": "Weather",
+            "unit": "°C",
+            "dataType": "number",
+            "staleAfterSeconds": 60
+          },
+          {
+            "driverId": "home-assistant",
+            "key": "weather.raining",
+            "uniqueId": "7b3c4d5e-6f70-4b8c-9d0e-1f2a3b4c5d6e",
+            "name": "Raining",
+            "deviceName": "Weather",
+            "dataType": "boolean",
+            "staleAfterSeconds": 60
+          }
+        ],
+        "loads": [
+          {
+            "driverId": "home-assistant",
+            "key": "heating-rod",
+            "uniqueId": "9d5e6f70-8b92-4dae-9f10-3b4c5d6e7f80",
+            "name": "Heating rod",
+            "channel": 0,
+            "nominalPowerW": 3000
+          },
+          {
+            "driverId": "home-assistant",
+            "key": "pool-pump",
+            "uniqueId": "8c4d5e6f-7a81-4c9d-8e0f-2a3b4c5d6e7f",
+            "name": "Pool pump",
+            "channel": 1,
+            "nominalPowerW": 1200
+          }
+        ],
+        "controls": [
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:mode",
+            "assistantId": "pv-wallbox-1",
+            "action": "mode",
+            "platform": "select",
+            "name": "Mode",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging",
+            "options": [
+              "off",
+              "fast",
+              "pv-excess"
+            ]
+          },
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:enabled",
+            "assistantId": "pv-wallbox-1",
+            "action": "enabled",
+            "platform": "switch",
+            "name": "Enabled",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging"
+          },
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_start_soc",
+            "assistantId": "pv-wallbox-1",
+            "action": "battery_support_start_soc",
+            "platform": "number",
+            "name": "Battery support start",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit": "%"
+          },
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_stop_soc",
+            "assistantId": "pv-wallbox-1",
+            "action": "battery_support_stop_soc",
+            "platform": "number",
+            "name": "Battery support stop",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit": "%"
+          }
         ]
       }
     },
@@ -890,8 +1359,16 @@
       "firmwareVersion": "2026.10.1",
       "catalogRevision": "9c1e4b7a2f05d863",
       "scopes": [
-        "read"
-      ]
+        "read",
+        "inputs",
+        "loads",
+        "control"
+      ],
+      "transport": {
+        "tls": true,
+        "tlsPort": 8443,
+        "certificateSha256": "38:89:B9:88:6F:C8:54:B3:9D:E0:39:9E:50:5E:61:3A:C0:B2:95:9E:17:84:9D:09:2D:38:D0:B5:9D:A7:53:BE"
+      }
     },
     "catalog": {
       "apiVersion": 1,
@@ -1224,6 +1701,108 @@
               "enabledByDefault": true
             }
           ]
+        }
+      ],
+      "inputs": [
+        {
+          "key": "weather.outdoorTemperature",
+          "uniqueId": "6a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "name": "Outdoor temperature",
+          "deviceName": "Weather",
+          "unit": "°C",
+          "dataType": "number",
+          "staleAfterSeconds": 60
+        },
+        {
+          "key": "weather.raining",
+          "uniqueId": "7b3c4d5e-6f70-4b8c-9d0e-1f2a3b4c5d6e",
+          "name": "Raining",
+          "deviceName": "Weather",
+          "unit": null,
+          "dataType": "boolean",
+          "staleAfterSeconds": 60
+        }
+      ],
+      "loads": [
+        {
+          "key": "heating-rod",
+          "uniqueId": "9d5e6f70-8b92-4dae-9f10-3b4c5d6e7f80",
+          "name": "Heating rod",
+          "channel": 0,
+          "nominalPowerW": 3000
+        },
+        {
+          "key": "pool-pump",
+          "uniqueId": "8c4d5e6f-7a81-4c9d-8e0f-2a3b4c5d6e7f",
+          "name": "Pool pump",
+          "channel": 1,
+          "nominalPowerW": 1200
+        }
+      ],
+      "controls": [
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:mode",
+          "assistantId": "pv-wallbox-1",
+          "action": "mode",
+          "platform": "select",
+          "name": "Mode",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": [
+            "off",
+            "fast",
+            "pv-excess"
+          ],
+          "min": null,
+          "max": null,
+          "step": null,
+          "unit": null,
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:mode"
+        },
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:enabled",
+          "assistantId": "pv-wallbox-1",
+          "action": "enabled",
+          "platform": "switch",
+          "name": "Enabled",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": null,
+          "min": null,
+          "max": null,
+          "step": null,
+          "unit": null,
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:enabled"
+        },
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_start_soc",
+          "assistantId": "pv-wallbox-1",
+          "action": "battery_support_start_soc",
+          "platform": "number",
+          "name": "Battery support start",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": null,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_start_soc"
+        },
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_stop_soc",
+          "assistantId": "pv-wallbox-1",
+          "action": "battery_support_stop_soc",
+          "platform": "number",
+          "name": "Battery support stop",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": null,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_stop_soc"
         }
       ]
     },
@@ -2076,6 +2655,12 @@
       },
       "catalog": {
         "catalogRevision": "4d2a8e61b7c3f095"
+      },
+      "command": {
+        "commandId": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "load": "8c4d5e6f-7a81-4c9d-8e0f-2a3b4c5d6e7f",
+        "action": "on",
+        "issuedAt": "2026-10-10T12:00:00Z"
       }
     },
     "error": {
@@ -2090,6 +2675,98 @@
       "body": {
         "code": "unauthorized",
         "message": "Missing or invalid integration token."
+      }
+    },
+    "tls": {
+      "certificateDer": "MIIBwDCCAWegAwIBAgIUdwGnIiTHDoGFMoXw/jr9/ZQnebUwCgYIKoZIzj0EAwIwJTEjMCEGA1UEAwwaRWNvUHVsc2UgZ2F0ZXdheSBndy03ZjNhOWMwHhcNMjYxMDEwMDY0NzI3WhcNNDYxMDEwMDY0NzI3WjAlMSMwIQYDVQQDDBpFY29QdWxzZSBnYXRld2F5IGd3LTdmM2E5YzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJHbvp1ncUJK6BOO5FwkQeYh7143Yunl728ablCHBhny846xTJ2ZKGECz1cBcXrlgcvxigXUVAnXE87yLi3CDKujdTBzMB0GA1UdDgQWBBQRoXk4sZF43rv0YbLjfytc6IkXVDAfBgNVHSMEGDAWgBQRoXk4sZF43rv0YbLjfytc6IkXVDAOBgNVHQ8BAf8EBAMCB4AwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNHADBEAiALZbEz1d1Gsojxnh/77NGOXtkI3ecB8K+qDPlTZHxrLAIgNtJbtLstE7b6dicxJe7JcyND16ArAMqsClfMqOiC4m0=",
+      "certificateSha256": "38:89:B9:88:6F:C8:54:B3:9D:E0:39:9E:50:5E:61:3A:C0:B2:95:9E:17:84:9D:09:2D:38:D0:B5:9D:A7:53:BE",
+      "beat": {
+        "homeAssistantTls": {
+          "port": 8443,
+          "certificateSha256": "38:89:B9:88:6F:C8:54:B3:9D:E0:39:9E:50:5E:61:3A:C0:B2:95:9E:17:84:9D:09:2D:38:D0:B5:9D:A7:53:BE"
+        }
+      }
+    },
+    "inputs": {
+      "request": {
+        "inputs": [
+          {
+            "key": "weather.outdoorTemperature",
+            "value": 12.3,
+            "unit": "°C"
+          },
+          {
+            "key": "weather.raining",
+            "value": false
+          },
+          {
+            "key": "weather.windSpeed",
+            "value": 4.2,
+            "unit": "m/s"
+          }
+        ]
+      },
+      "response": {
+        "accepted": [
+          "weather.outdoorTemperature",
+          "weather.raining"
+        ],
+        "rejected": [
+          {
+            "key": "weather.windSpeed",
+            "code": "unknown_input"
+          }
+        ]
+      }
+    },
+    "loads": {
+      "ack": {
+        "path": "/commands/0f1e2d3c4b5a69788796a5b4c3d2e1f0/ack",
+        "request": {
+          "ok": true,
+          "state": "on"
+        }
+      },
+      "failedAck": {
+        "path": "/commands/0f1e2d3c4b5a69788796a5b4c3d2e1f0/ack",
+        "request": {
+          "ok": false,
+          "state": null,
+          "error": "switch.pool_pump is unavailable"
+        }
+      }
+    },
+    "control": {
+      "request": {
+        "action": "mode",
+        "assistantId": "pv-wallbox-1",
+        "value": "fast"
+      },
+      "response": {
+        "applied": true,
+        "state": "fast"
+      },
+      "refused": {
+        "code": "out_of_bounds",
+        "message": "The value is outside what this control allows."
+      },
+      "beat": {
+        "homeAssistantControl": {
+          "actions": [
+            {
+              "at": "2026-10-10T12:00:00.000Z",
+              "assistantId": "pv-wallbox-1",
+              "action": "mode",
+              "value": "fast"
+            },
+            {
+              "at": "2026-10-10T12:00:05.000Z",
+              "assistantId": "pv-wallbox-1",
+              "action": "battery_support_stop_soc",
+              "value": 40
+            }
+          ]
+        }
       }
     }
   }

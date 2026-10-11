@@ -6,6 +6,9 @@ Client behaviour per ADR-230 §4/§6 and the contract's ``client`` block:
   ``/catalog`` and reload the entry (only if the refetched revision really differs, so an edge
   that is briefly inconsistent cannot drive a reload loop);
 - unknown value ids are ignored;
+- a ``command`` event (schema 6, #625) goes to the registered command handler, and only when this
+  stream is the pinned TLS connection: one in the clear never switches anything; the stream asks
+  for commands only while a handler is registered (review r1 MED-1);
 - 401/403 -> reauth, no further reconnects; 404 -> retry after 300 s; 429 -> Retry-After;
   a drop -> backoff from 1 s doubling to 60 s, reset by a snapshot.
 """
@@ -24,7 +27,9 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from .api import (
     EcoPulseApiClient,
     EcoPulseAuthError,
+    EcoPulseCertificateMismatchError,
     EcoPulseConnectionError,
+    EcoPulseInvalidRequestError,
     EcoPulseNotEnabledError,
     EcoPulseRateLimitedError,
 )
@@ -33,6 +38,7 @@ from .const import (
     BACKOFF_MAX_SECONDS,
     EVENT_AVAILABILITY,
     EVENT_CATALOG,
+    EVENT_COMMAND,
     EVENT_SNAPSHOT,
     EVENT_VALUES,
     RETRY_LATER_SECONDS,
@@ -98,11 +104,14 @@ class EcoPulseStreamCoordinator:
         self._device_of = catalog.device_of()
         # Gateway entities take values like signals but belong to no device (#623).
         self._value_ids = set(self._device_of) | {e.unique_id for e in catalog.gateway_entities}
+        # A control's state is a stream value too (schema 7, #627): its stateValueId.
+        self._value_ids |= {c.state_value_id for c in catalog.controls}
         self.values: dict[str, SignalValue] = {}
         self._device_available: dict[str, bool] = {}
         self.connected = False
         self.stream_task: asyncio.Task[None] | None = None
         self._listeners: dict[str, list[Callable[[], None]]] = {}
+        self._command_handler: Callable[[dict[str, Any]], None] | None = None
 
     # -- entity side -----------------------------------------------------------------------------
 
@@ -121,6 +130,31 @@ class EcoPulseStreamCoordinator:
         @callback
         def remove() -> None:
             listeners.remove(update)
+
+        return remove
+
+    @callback
+    def async_set_value(self, unique_id: str, value: Any) -> None:
+        """#627: the state a control's 202 reports, shown until the stream sends the next one (the
+        stream stays the source: its next value replaces this one)."""
+        current = self.values.get(unique_id)
+        self.values[unique_id] = SignalValue(value, current.ts if current else None)
+        self._notify([unique_id])
+
+    @callback
+    def async_notify_all(self) -> None:
+        """Every entity writes its state again (#627: control was disabled)."""
+        self._notify(self._listeners)
+
+    @callback
+    def async_set_command_handler(self, handler: Callable[[dict[str, Any]], None]) -> CALLBACK_TYPE:
+        """#625: ``handler`` gets each ``command`` event's data; the result removes it again."""
+        self._command_handler = handler
+
+        @callback
+        def remove() -> None:
+            if self._command_handler is handler:
+                self._command_handler = None
 
         return remove
 
@@ -150,10 +184,20 @@ class EcoPulseStreamCoordinator:
         while True:
             error: Exception | None = None
             try:
-                async with aclosing(self._client.async_stream()) as events:
+                answers_commands = self._command_handler is not None
+                async with aclosing(self._client.async_stream(commands=answers_commands)) as events:
                     async for event in events:
                         if await self._async_handle(event):
                             backoff = float(BACKOFF_INITIAL_SECONDS)
+            except EcoPulseCertificateMismatchError as err:
+                # Contract tls.client.onMismatch: nothing was sent, no fallback to plain HTTP.
+                _LOGGER.warning(
+                    "The gateway presented another TLS certificate (SHA-256 %s) than the pinned "
+                    "one; reauthentication required to confirm it against the EcoPulse web app",
+                    err.seen,
+                )
+                self._entry.async_start_reauth(self.hass)
+                return
             except EcoPulseAuthError:
                 _LOGGER.warning("The gateway rejected the token; reauthentication required")
                 self._entry.async_start_reauth(self.hass)
@@ -162,6 +206,8 @@ class EcoPulseStreamCoordinator:
                 return
             except (
                 EcoPulseConnectionError,
+                # A 400 or 503 on the stream (schema 7 added "unavailable"): reconnect with backoff.
+                EcoPulseInvalidRequestError,
                 EcoPulseNotEnabledError,
                 EcoPulseRateLimitedError,
             ) as err:
@@ -189,6 +235,8 @@ class EcoPulseStreamCoordinator:
             self._apply_availability(_list(event.data.get("devices")))
         elif event.name == EVENT_CATALOG:
             await self._async_ensure_catalog(event.data.get("catalogRevision"))
+        elif event.name == EVENT_COMMAND:
+            self._dispatch_command(event.data)
         # Unknown event types are ignored (additive within v1, ADR-230 §10).
         return False
 
@@ -206,6 +254,18 @@ class EcoPulseStreamCoordinator:
         )
         self.hass.config_entries.async_schedule_reload(self._entry.entry_id)
         raise _ReloadScheduled
+
+    @callback
+    def _dispatch_command(self, data: dict[str, Any]) -> None:
+        # The gateway sends commands only on a TLS stream; one arriving in the clear is not the
+        # gateway's (contract tls.client: a pinned connection or nothing) and switches nothing.
+        if not self._client.pinned:
+            _LOGGER.warning(
+                "Ignoring a command received over a connection without the pinned certificate"
+            )
+            return
+        if self._command_handler is not None:
+            self._command_handler(data)
 
     @callback
     def _apply_snapshot(self, data: dict[str, Any]) -> None:

@@ -8,6 +8,7 @@ changes, this test turns red until the fixture and the plugin are updated togeth
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -17,10 +18,11 @@ from typing import Any
 import pytest
 
 from custom_components.ecopulse import api, const
+from custom_components.ecopulse.models import Catalog, GatewayInfo
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "b68946f709feba29e2ead3c8326798a5fea64b8390f93472d354d31fff1c1fcb"
+CONTRACT_SHA256 = "31529cff34da0d7d09243755bab8ebb9184b3b9f9f88bd8729f90c64cd076c33"
 COMPONENT_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse"
 MANIFEST_PATH = COMPONENT_PATH / "manifest.json"
 STRINGS_PATH = COMPONENT_PATH / "strings.json"
@@ -32,7 +34,7 @@ def test_fixture_is_the_pinned_contract() -> None:
 
 
 def test_schema_and_api_version_are_the_ones_this_plugin_speaks(contract: dict[str, Any]) -> None:
-    assert contract["schemaVersion"] == 3
+    assert contract["schemaVersion"] == 7
     assert contract["apiVersion"] == const.API_VERSION
     assert contract["basePath"] == const.API_BASE_PATH
 
@@ -204,6 +206,7 @@ def test_stream_event_names_match(contract: dict[str, Any]) -> None:
         const.EVENT_VALUES,
         const.EVENT_AVAILABILITY,
         const.EVENT_CATALOG,
+        const.EVENT_COMMAND,
     ]
 
 
@@ -220,15 +223,224 @@ def test_manifest_announces_the_contract_zeroconf_type(contract: dict[str, Any])
     assert manifest["iot_class"] == "local_push"
 
 
+def test_tls_constants_match_and_the_fingerprint_rule_is_the_contract_s(
+    contract: dict[str, Any],
+) -> None:
+    # Schema 4 (#610 S8-TLS, ADR-232): the pin is the SHA-256 of the DER certificate in uppercase
+    # hex pairs with colons, recomputed here on the example certificate, as cloud and edge do.
+    tls = contract["tls"]
+    assert tls["defaultPort"] == const.DEFAULT_TLS_PORT
+    assert frozenset(tls["scopesRequiringTls"]) == const.SCOPES_REQUIRING_TLS
+    assert "read" not in const.SCOPES_REQUIRING_TLS
+    assert tls["fingerprint"] == {
+        "algorithm": "sha256",
+        "over": "der-certificate",
+        "format": "uppercase-hex-colon-separated",
+        "pattern": const.FINGERPRINT_PATTERN,
+    }
+    assert tls["client"] == {
+        "pin": "certificate-sha256",
+        "firstPin": "confirm-against-cloud",
+        "onMismatch": "reauth",
+        "fallbackToPlainHttp": False,
+    }
+    example = contract["examples"]["tls"]
+    der = base64.b64decode(example["certificateDer"])
+    assert api.format_fingerprint(hashlib.sha256(der).digest()) == example["certificateSha256"]
+    assert api.fingerprint_digest(example["certificateSha256"]) == hashlib.sha256(der).digest()
+    assert {e["code"]: e["client"] for e in contract["errors"]}[
+        const.ERROR_TLS_REQUIRED
+    ] == "reauth"
+
+
+def test_info_transport_is_read(contract: dict[str, Any]) -> None:
+    info = GatewayInfo.from_dict(contract["examples"]["info"])
+    transport = contract["examples"]["info"]["transport"]
+    assert (info.tls_port, info.tls_fingerprint) == (
+        transport["tlsPort"],
+        transport["certificateSha256"],
+    )
+    older = GatewayInfo.from_dict(
+        {k: v for k, v in contract["examples"]["info"].items() if k != "transport"}
+    )
+    assert (older.tls_port, older.tls_fingerprint) == (None, None)
+
+
 _ERROR_FOR_ACTION = {
     "reauth": api.EcoPulseAuthError,
     "retry-later": api.EcoPulseNotEnabledError,
     "honour-retry-after": api.EcoPulseRateLimitedError,
+    "drop-request": api.EcoPulseInvalidRequestError,
 }
 
 
+def test_inputs_constants_match(contract: dict[str, Any]) -> None:
+    # Schema 5 (#624, ADR-232 S5): what the forwarder posts and how often, and what may feed a slot.
+    inputs = contract["inputs"]
+    assert inputs["repostSeconds"] == const.INPUTS_REPOST_SECONDS
+    assert inputs["maxItemsPerRequest"] == const.INPUTS_MAX_PER_REQUEST
+    assert inputs["dataTypes"] == [const.INPUT_DATA_TYPE_NUMBER, const.INPUT_DATA_TYPE_BOOLEAN]
+    assert set(const.INPUT_DOMAINS) == set(inputs["dataTypes"])
+    assert inputs["repostSeconds"] < inputs["defaultStaleAfterSeconds"]
+    assert {"method": "POST", "path": "/" + const.INPUTS_PATH, "scope": "inputs"} in contract[
+        "endpoints"
+    ]
+    assert "inputs" in const.SCOPES_REQUIRING_TLS
+    assert contract["client"]["routeErrors"][0] == {
+        "method": "POST",
+        "path": "/" + const.INPUTS_PATH,
+        "status": 403,
+        "client": const.CLIENT_ACTION_DISABLE_ROUTE,
+    }
+    assert {e["code"]: e["client"] for e in contract["errors"]}[
+        const.ERROR_INVALID_REQUEST
+    ] == const.CLIENT_ACTION_DROP_REQUEST
+
+
+def test_the_catalog_s_input_slots_are_read(contract: dict[str, Any]) -> None:
+    catalog = Catalog.from_dict(contract["examples"]["catalog"])
+    expected = contract["examples"]["catalog"]["inputs"]
+
+    assert [
+        (i.key, i.unique_id, i.unit, i.data_type, i.stale_after_seconds) for i in catalog.inputs
+    ] == [
+        (i["key"], i["uniqueId"], i["unit"], i["dataType"], i["staleAfterSeconds"])
+        for i in expected
+    ]
+    older = {k: v for k, v in contract["examples"]["catalog"].items() if k != "inputs"}
+    assert Catalog.from_dict(older).inputs == ()
+
+
+def test_loads_constants_match(contract: dict[str, Any]) -> None:
+    # Schema 6 (#625, ADR-232 S6): the command event, its ack route and what a load maps to.
+    loads = contract["loads"]
+    assert contract["stream"]["eventProperties"][const.EVENT_COMMAND] == loads["commandProperties"]
+    assert loads["actions"] == [const.LOAD_ACTION_ON, const.LOAD_ACTION_OFF]
+    assert loads["entityDomains"] == list(const.LOAD_ENTITY_DOMAINS)
+    assert loads["commandIdPattern"] == const.COMMAND_ID_PATTERN
+    assert loads["ackProperties"] == ["ok", "state", "error"]
+    assert loads["maxErrorLength"] == const.ACK_MAX_ERROR_LENGTH
+    assert loads["ackBodyMaxBytes"] == const.ACK_BODY_MAX_BYTES
+    assert loads["ackResponseStatus"] == 204
+    assert loads["ackTimeoutSeconds"] == const.ACK_TIMEOUT_SECONDS
+    # Review r1 MED-1: commands reach only a stream that asks for them; this client answers them.
+    assert loads["commandOptIn"] == {
+        "parameter": const.COMMAND_OPT_IN_PARAMETER,
+        "value": const.COMMAND_OPT_IN_VALUE,
+    }
+    assert loads["delivery"] == "all-command-streams-first-success-wins"
+    assert {"method": "POST", "path": const.COMMAND_ACK_PATH, "scope": "loads"} in contract[
+        "endpoints"
+    ]
+    assert "loads" in const.SCOPES_REQUIRING_TLS
+    assert {
+        "method": "POST",
+        "path": const.COMMAND_ACK_PATH,
+        "status": 403,
+        "client": const.CLIENT_ACTION_DISABLE_ROUTE,
+    } in contract["client"]["routeErrors"]
+    assert {e["code"]: (e["status"], e["client"]) for e in contract["errors"]}[
+        const.ERROR_UNKNOWN_COMMAND
+    ] == (404, const.CLIENT_ACTION_DROP_REQUEST)
+    assert contract["examples"]["loads"]["ack"]["path"] == const.COMMAND_ACK_PATH.format(
+        commandId=contract["examples"]["stream"][const.EVENT_COMMAND]["commandId"]
+    )
+
+
+def test_the_catalog_s_loads_are_read(contract: dict[str, Any]) -> None:
+    catalog = Catalog.from_dict(contract["examples"]["catalog"])
+    expected = contract["examples"]["catalog"]["loads"]
+
+    assert [
+        (lo.key, lo.unique_id, lo.name, lo.channel, lo.nominal_power_w) for lo in catalog.loads
+    ] == [
+        (lo["key"], lo["uniqueId"], lo["name"], lo["channel"], lo["nominalPowerW"])
+        for lo in expected
+    ]
+    older = {k: v for k, v in contract["examples"]["catalog"].items() if k != "loads"}
+    assert Catalog.from_dict(older).loads == ()
+
+
+def test_control_constants_match(contract: dict[str, Any]) -> None:
+    # Schema 7 (#627, ADR-232 S8): what a control entity posts, where, and how a refusal reads.
+    control = contract["control"]
+    assert {"method": "POST", "path": "/" + const.CONTROL_PATH, "scope": "control"} in contract[
+        "endpoints"
+    ]
+    assert const.SCOPE_CONTROL in const.SCOPES_REQUIRING_TLS
+    assert control["requestProperties"] == ["action", "assistantId", "value"]
+    assert control["responseStatus"] == 202
+    assert control["responseProperties"] == ["applied", "state"]
+    assert control["platforms"] == list(const.CONTROL_PLATFORMS)
+    assert control["refusalStatus"] == 422
+    assert frozenset(control["refusalCodes"]) == const.CONTROL_REFUSAL_CODES
+    assert control["state"] == "stream-value"
+    assert {
+        "method": "POST",
+        "path": "/" + const.CONTROL_PATH,
+        "status": 403,
+        "client": const.CLIENT_ACTION_DISABLE_ROUTE,
+    } in contract["client"]["routeErrors"]
+    errors = {e["code"]: (e["status"], e["client"]) for e in contract["errors"]}
+    for code in const.CONTROL_REFUSAL_CODES:
+        assert errors[code] == (422, const.CLIENT_ACTION_DROP_REQUEST)
+    assert errors[const.ERROR_UNAVAILABLE] == (503, const.CLIENT_ACTION_DROP_REQUEST)
+
+
+def test_the_catalog_s_controls_are_read(contract: dict[str, Any]) -> None:
+    catalog = Catalog.from_dict(contract["examples"]["catalog"])
+    expected = contract["examples"]["catalog"]["controls"]
+
+    assert [
+        (
+            c.unique_id,
+            c.assistant_id,
+            c.action,
+            c.platform,
+            c.name,
+            c.device_id,
+            c.device_name,
+            c.options,
+            c.min,
+            c.max,
+            c.step,
+            c.unit,
+            c.state_value_id,
+        )
+        for c in catalog.controls
+    ] == [
+        (
+            c["uniqueId"],
+            c["assistantId"],
+            c["action"],
+            c["platform"],
+            c["name"],
+            c["deviceId"],
+            c["deviceName"],
+            tuple(c["options"]) if c["options"] is not None else None,
+            c["min"],
+            c["max"],
+            c["step"],
+            c["unit"],
+            c["stateValueId"],
+        )
+        for c in expected
+    ]
+    assert {c.platform for c in catalog.controls} == set(const.CONTROL_PLATFORMS)
+    older = {k: v for k, v in contract["examples"]["catalog"].items() if k != "controls"}
+    assert Catalog.from_dict(older).controls == ()
+
+
+# The command ack's 404 (unknown_command, #625) is answered by its own route; every other error
+# goes through the shared status mapping.
 @pytest.mark.parametrize(
-    "error", json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["errors"], ids=str
+    "error",
+    [
+        e
+        for e in json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["errors"]
+        if e["code"] != "unknown_command"
+    ],
+    ids=str,
 )
 def test_every_contract_error_maps_to_its_client_action(error: dict[str, Any]) -> None:
     response = SimpleNamespace(status=error["status"], headers={"Retry-After": "3"})

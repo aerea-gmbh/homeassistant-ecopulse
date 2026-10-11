@@ -413,7 +413,7 @@ async def test_the_stream_generator_is_closed_when_a_reload_ends_the_stream(
     closed = asyncio.Event()
     task_done_when_closed: list[bool] = []
 
-    async def stream() -> AsyncIterator[SseEvent]:
+    async def stream(**_options: Any) -> AsyncIterator[SseEvent]:
         try:
             yield SseEvent("catalog", {"catalogRevision": NEW_REVISION})
             await asyncio.Event().wait()

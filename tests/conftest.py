@@ -41,6 +41,15 @@ async def gateway() -> AsyncGenerator[FakeGateway]:
 
 
 @pytest.fixture
+async def tls_gateway() -> AsyncGenerator[FakeGateway]:
+    """The gateway's TLS port (#610 S8-TLS): HTTPS with its own self-signed certificate."""
+    fake = FakeGateway(tls=True)
+    await fake.start()
+    yield fake
+    await fake.close()
+
+
+@pytest.fixture
 def fast_backoff() -> Generator[None]:
     """Shrink the contract's seconds so reconnect tests run in milliseconds."""
     with (
