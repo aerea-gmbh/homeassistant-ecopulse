@@ -32,6 +32,7 @@ from .const import (
     COMMAND_OPT_IN_VALUE,
     CONF_TLS_FINGERPRINT,
     CONF_TLS_PORT,
+    CONTROL_PATH,
     FINGERPRINT_PATTERN,
     INPUTS_PATH,
     REQUEST_TIMEOUT_SECONDS,
@@ -94,6 +95,42 @@ class EcoPulseLoadsRefusedError(EcoPulseError):
 class EcoPulseUnknownCommandError(EcoPulseError):
     """404 ``unknown_command`` on a command ack (contract action ``drop-request``): nothing waits
     for it any more (another Home Assistant answered first, or it timed out)."""
+
+
+class EcoPulseControlRefusedError(EcoPulseInvalidRequestError):
+    """422 on ``POST /control`` (schema 7, #627; contract action ``drop-request``): the gateway
+    refused the value (``out_of_bounds``), the assistant (``unknown_target``) or the action
+    (``not_allowed``). Repeating it gives the same answer."""
+
+    def __init__(self, code: str | None) -> None:
+        super().__init__(f"the gateway refused the control ({code})")
+        self.code = code
+
+
+class EcoPulseUnavailableError(EcoPulseInvalidRequestError):
+    """503 ``unavailable`` (schema 7, #627; contract action ``drop-request``): the gateway cannot
+    change its config now; nothing was changed. Not repeated by itself: the user acts again."""
+
+
+class EcoPulseControlForbiddenError(EcoPulseError):
+    """403 on ``POST /control`` (contract ``client.routeErrors``: ``disable-route``): the plant's
+    opt-in in the EcoPulse web app is off, or the request came in the clear. Reading goes on."""
+
+    def __init__(self, code: str | None) -> None:
+        super().__init__(f"the gateway refused control ({code})")
+        self.code = code
+
+
+class EcoPulseControlNeedsTlsError(EcoPulseError):
+    """A control was to go out over a client without the pinned certificate: nothing is sent."""
+
+
+@dataclass(frozen=True, slots=True)
+class ControlResult:
+    """A 202 of ``POST /control``: whether the gateway changed anything, and the value now."""
+
+    applied: bool
+    state: Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +237,37 @@ class EcoPulseApiClient:
             raise _mismatch(err) from err
         except (aiohttp.ClientError, TimeoutError) as err:
             raise EcoPulseConnectionError(f"POST command ack failed: {type(err).__name__}") from err
+
+    async def async_post_control(self, action: str, assistant_id: str, value: Any) -> ControlResult:
+        """``POST /control`` (schema 7, #627): 202 ``{applied, state}``. Only over the pinned
+        connection: without the pin nothing is sent (the scope works only over TLS, and the token
+        must not travel in the clear for a write). A 403 is the route's
+        (:class:`EcoPulseControlForbiddenError`), a 422 a refusal with its code; nothing retries."""
+        if not self.pinned:
+            raise EcoPulseControlNeedsTlsError("control is sent only over the pinned connection")
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
+        try:
+            async with self._session.post(
+                self._base / CONTROL_PATH,
+                headers=self._headers,
+                json={"action": action, "assistantId": assistant_id, "value": value},
+                timeout=timeout,
+                allow_redirects=False,
+                ssl=self._ssl,
+            ) as response:
+                if response.status == 403:
+                    raise EcoPulseControlForbiddenError(await _error_code(response))
+                if response.status == 422:
+                    raise EcoPulseControlRefusedError(await _error_code(response))
+                _raise_for_status(response, success=202)
+                data = await response.json()
+        except aiohttp.ServerFingerprintMismatch as err:
+            raise _mismatch(err) from err
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            raise EcoPulseConnectionError(f"POST control failed: {type(err).__name__}") from err
+        if not isinstance(data, dict):
+            raise EcoPulseConnectionError("POST control returned no JSON object")
+        return ControlResult(applied=bool(data.get("applied")), state=data.get("state"))
 
     async def async_stream(self, *, commands: bool = False) -> AsyncIterator[SseEvent]:
         """Yield events until the stream ends; raise on silence, errors or auth failure.
@@ -341,8 +409,12 @@ def _raise_for_status(response: aiohttp.ClientResponse, success: int = 200) -> N
         raise EcoPulseAuthError(f"gateway answered {status}")
     if status == 404:
         raise EcoPulseNotEnabledError("Home Assistant API not enabled on the gateway")
+    if status == 422:
+        raise EcoPulseControlRefusedError(None)
     if status == 429:
         raise EcoPulseRateLimitedError(parse_retry_after(response.headers.get("Retry-After")))
+    if status == 503:
+        raise EcoPulseUnavailableError("the gateway cannot take changes now")
     raise EcoPulseConnectionError(f"gateway answered {status}")
 
 
@@ -364,16 +436,21 @@ def parse_retry_after(value: str | None) -> float | None:
 
 
 __all__ = [
+    "ControlResult",
     "EcoPulseApiClient",
     "EcoPulseAuthError",
     "EcoPulseCertificateMismatchError",
     "EcoPulseConnectionError",
+    "EcoPulseControlForbiddenError",
+    "EcoPulseControlNeedsTlsError",
+    "EcoPulseControlRefusedError",
     "EcoPulseError",
     "EcoPulseInputsRefusedError",
     "EcoPulseInvalidRequestError",
     "EcoPulseLoadsRefusedError",
     "EcoPulseNotEnabledError",
     "EcoPulseRateLimitedError",
+    "EcoPulseUnavailableError",
     "EcoPulseUnknownCommandError",
     "InputsResult",
     "async_fetch_certificate_fingerprint",

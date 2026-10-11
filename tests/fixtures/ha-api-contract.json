@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "apiVersion": 1,
   "basePath": "/api/ha/v1",
   "auth": {
@@ -43,17 +43,15 @@
       "method": "POST",
       "path": "/commands/{commandId}/ack",
       "scope": "loads"
+    },
+    {
+      "method": "POST",
+      "path": "/control",
+      "scope": "control"
     }
   ],
   "reserved": {
-    "endpoints": [
-      {
-        "method": "POST",
-        "path": "/control",
-        "scope": "control",
-        "slice": "S8"
-      }
-    ],
+    "endpoints": [],
     "streamEvents": []
   },
   "errors": [
@@ -91,6 +89,26 @@
       "status": 404,
       "code": "unknown_command",
       "client": "drop-request"
+    },
+    {
+      "status": 422,
+      "code": "out_of_bounds",
+      "client": "drop-request"
+    },
+    {
+      "status": 422,
+      "code": "unknown_target",
+      "client": "drop-request"
+    },
+    {
+      "status": 422,
+      "code": "not_allowed",
+      "client": "drop-request"
+    },
+    {
+      "status": 503,
+      "code": "unavailable",
+      "client": "drop-request"
     }
   ],
   "errorProperties": [
@@ -122,6 +140,12 @@
         "path": "/commands/{commandId}/ack",
         "status": 403,
         "client": "disable-route"
+      },
+      {
+        "method": "POST",
+        "path": "/control",
+        "status": 403,
+        "client": "disable-route"
       }
     ]
   },
@@ -144,7 +168,8 @@
       "gateway",
       "devices",
       "inputs",
-      "loads"
+      "loads",
+      "controls"
     ],
     "gatewayProperties": [
       "id",
@@ -776,7 +801,8 @@
       "token",
       "devices",
       "inputs",
-      "loads"
+      "loads",
+      "controls"
     ],
     "tokenProperties": [
       "hash",
@@ -979,6 +1005,146 @@
       "nominalPowerW"
     ]
   },
+  "control": {
+    "actions": [
+      {
+        "name": "mode",
+        "platform": "select"
+      },
+      {
+        "name": "enabled",
+        "platform": "switch"
+      },
+      {
+        "name": "battery_support_start_soc",
+        "platform": "number"
+      },
+      {
+        "name": "battery_support_stop_soc",
+        "platform": "number"
+      }
+    ],
+    "platforms": [
+      "select",
+      "switch",
+      "number"
+    ],
+    "assistantModels": [
+      {
+        "model": "pv-excess-wallbox",
+        "actions": [
+          "mode",
+          "enabled",
+          "battery_support_start_soc",
+          "battery_support_stop_soc"
+        ]
+      },
+      {
+        "model": "pv-excess-heater",
+        "actions": [
+          "mode",
+          "enabled",
+          "battery_support_start_soc",
+          "battery_support_stop_soc"
+        ]
+      },
+      {
+        "model": "battery-soc-switch",
+        "actions": [
+          "mode",
+          "enabled"
+        ]
+      }
+    ],
+    "uniqueIdTemplate": "{assistantUniqueId}:{action}",
+    "requestProperties": [
+      "action",
+      "assistantId",
+      "value"
+    ],
+    "maxBodyBytes": 1024,
+    "responseStatus": 202,
+    "responseProperties": [
+      "applied",
+      "state"
+    ],
+    "refusalStatus": 422,
+    "refusalCodes": [
+      "out_of_bounds",
+      "unknown_target",
+      "not_allowed"
+    ],
+    "rateLimits": [
+      {
+        "requests": 1,
+        "windowSeconds": 1
+      },
+      {
+        "requests": 30,
+        "windowSeconds": 60
+      }
+    ],
+    "soc": {
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "floor": "plant-min-soc",
+      "stopNotAboveStart": true
+    },
+    "state": "stream-value",
+    "catalogProperties": [
+      "uniqueId",
+      "assistantId",
+      "action",
+      "platform",
+      "name",
+      "deviceId",
+      "deviceName",
+      "options",
+      "min",
+      "max",
+      "step",
+      "unit",
+      "stateValueId"
+    ],
+    "nullableCatalogProperties": [
+      "options",
+      "min",
+      "max",
+      "step",
+      "unit"
+    ],
+    "blockProperties": [
+      "uniqueId",
+      "assistantId",
+      "action",
+      "platform",
+      "name",
+      "deviceId",
+      "deviceName",
+      "options",
+      "min",
+      "max",
+      "step",
+      "unit"
+    ],
+    "audit": {
+      "beatProperty": "homeAssistantControl",
+      "beatProperties": [
+        "actions"
+      ],
+      "actionProperties": [
+        "at",
+        "assistantId",
+        "action",
+        "value"
+      ],
+      "ringSize": 20,
+      "log": "one-line-per-request"
+    },
+    "conflict": "cloud-adopts-newest-writer"
+  },
   "examples": {
     "token": {
       "token": "ecp_ha_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
@@ -994,7 +1160,8 @@
           "scopes": [
             "read",
             "inputs",
-            "loads"
+            "loads",
+            "control"
           ]
         },
         "devices": [
@@ -1128,6 +1295,57 @@
             "channel": 1,
             "nominalPowerW": 1200
           }
+        ],
+        "controls": [
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:mode",
+            "assistantId": "pv-wallbox-1",
+            "action": "mode",
+            "platform": "select",
+            "name": "Mode",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging",
+            "options": [
+              "off",
+              "fast",
+              "pv-excess"
+            ]
+          },
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:enabled",
+            "assistantId": "pv-wallbox-1",
+            "action": "enabled",
+            "platform": "switch",
+            "name": "Enabled",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging"
+          },
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_start_soc",
+            "assistantId": "pv-wallbox-1",
+            "action": "battery_support_start_soc",
+            "platform": "number",
+            "name": "Battery support start",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit": "%"
+          },
+          {
+            "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_stop_soc",
+            "assistantId": "pv-wallbox-1",
+            "action": "battery_support_stop_soc",
+            "platform": "number",
+            "name": "Battery support stop",
+            "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+            "deviceName": "Wallbox PV charging",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit": "%"
+          }
         ]
       }
     },
@@ -1143,7 +1361,8 @@
       "scopes": [
         "read",
         "inputs",
-        "loads"
+        "loads",
+        "control"
       ],
       "transport": {
         "tls": true,
@@ -1518,6 +1737,72 @@
           "name": "Pool pump",
           "channel": 1,
           "nominalPowerW": 1200
+        }
+      ],
+      "controls": [
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:mode",
+          "assistantId": "pv-wallbox-1",
+          "action": "mode",
+          "platform": "select",
+          "name": "Mode",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": [
+            "off",
+            "fast",
+            "pv-excess"
+          ],
+          "min": null,
+          "max": null,
+          "step": null,
+          "unit": null,
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:mode"
+        },
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:enabled",
+          "assistantId": "pv-wallbox-1",
+          "action": "enabled",
+          "platform": "switch",
+          "name": "Enabled",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": null,
+          "min": null,
+          "max": null,
+          "step": null,
+          "unit": null,
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:enabled"
+        },
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_start_soc",
+          "assistantId": "pv-wallbox-1",
+          "action": "battery_support_start_soc",
+          "platform": "number",
+          "name": "Battery support start",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": null,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_start_soc"
+        },
+        {
+          "uniqueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_stop_soc",
+          "assistantId": "pv-wallbox-1",
+          "action": "battery_support_stop_soc",
+          "platform": "number",
+          "name": "Battery support stop",
+          "deviceId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293",
+          "deviceName": "Wallbox PV charging",
+          "options": null,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "stateValueId": "5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293:battery_support_stop_soc"
         }
       ]
     },
@@ -2448,6 +2733,39 @@
           "ok": false,
           "state": null,
           "error": "switch.pool_pump is unavailable"
+        }
+      }
+    },
+    "control": {
+      "request": {
+        "action": "mode",
+        "assistantId": "pv-wallbox-1",
+        "value": "fast"
+      },
+      "response": {
+        "applied": true,
+        "state": "fast"
+      },
+      "refused": {
+        "code": "out_of_bounds",
+        "message": "The value is outside what this control allows."
+      },
+      "beat": {
+        "homeAssistantControl": {
+          "actions": [
+            {
+              "at": "2026-10-10T12:00:00.000Z",
+              "assistantId": "pv-wallbox-1",
+              "action": "mode",
+              "value": "fast"
+            },
+            {
+              "at": "2026-10-10T12:00:05.000Z",
+              "assistantId": "pv-wallbox-1",
+              "action": "battery_support_stop_soc",
+              "value": 40
+            }
+          ]
         }
       }
     }

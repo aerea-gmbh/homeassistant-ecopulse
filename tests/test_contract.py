@@ -22,7 +22,7 @@ from custom_components.ecopulse.models import Catalog, GatewayInfo
 
 from .fake_gateway import CONTRACT_PATH
 
-CONTRACT_SHA256 = "a0b6aaeee39f0e02fcf52907f85bdab877d75ac07224b396297f4b26f683459b"
+CONTRACT_SHA256 = "31529cff34da0d7d09243755bab8ebb9184b3b9f9f88bd8729f90c64cd076c33"
 COMPONENT_PATH = Path(__file__).parents[1] / "custom_components" / "ecopulse"
 MANIFEST_PATH = COMPONENT_PATH / "manifest.json"
 STRINGS_PATH = COMPONENT_PATH / "strings.json"
@@ -34,7 +34,7 @@ def test_fixture_is_the_pinned_contract() -> None:
 
 
 def test_schema_and_api_version_are_the_ones_this_plugin_speaks(contract: dict[str, Any]) -> None:
-    assert contract["schemaVersion"] == 6
+    assert contract["schemaVersion"] == 7
     assert contract["apiVersion"] == const.API_VERSION
     assert contract["basePath"] == const.API_BASE_PATH
 
@@ -359,6 +359,76 @@ def test_the_catalog_s_loads_are_read(contract: dict[str, Any]) -> None:
     ]
     older = {k: v for k, v in contract["examples"]["catalog"].items() if k != "loads"}
     assert Catalog.from_dict(older).loads == ()
+
+
+def test_control_constants_match(contract: dict[str, Any]) -> None:
+    # Schema 7 (#627, ADR-232 S8): what a control entity posts, where, and how a refusal reads.
+    control = contract["control"]
+    assert {"method": "POST", "path": "/" + const.CONTROL_PATH, "scope": "control"} in contract[
+        "endpoints"
+    ]
+    assert const.SCOPE_CONTROL in const.SCOPES_REQUIRING_TLS
+    assert control["requestProperties"] == ["action", "assistantId", "value"]
+    assert control["responseStatus"] == 202
+    assert control["responseProperties"] == ["applied", "state"]
+    assert control["platforms"] == list(const.CONTROL_PLATFORMS)
+    assert control["refusalStatus"] == 422
+    assert frozenset(control["refusalCodes"]) == const.CONTROL_REFUSAL_CODES
+    assert control["state"] == "stream-value"
+    assert {
+        "method": "POST",
+        "path": "/" + const.CONTROL_PATH,
+        "status": 403,
+        "client": const.CLIENT_ACTION_DISABLE_ROUTE,
+    } in contract["client"]["routeErrors"]
+    errors = {e["code"]: (e["status"], e["client"]) for e in contract["errors"]}
+    for code in const.CONTROL_REFUSAL_CODES:
+        assert errors[code] == (422, const.CLIENT_ACTION_DROP_REQUEST)
+    assert errors[const.ERROR_UNAVAILABLE] == (503, const.CLIENT_ACTION_DROP_REQUEST)
+
+
+def test_the_catalog_s_controls_are_read(contract: dict[str, Any]) -> None:
+    catalog = Catalog.from_dict(contract["examples"]["catalog"])
+    expected = contract["examples"]["catalog"]["controls"]
+
+    assert [
+        (
+            c.unique_id,
+            c.assistant_id,
+            c.action,
+            c.platform,
+            c.name,
+            c.device_id,
+            c.device_name,
+            c.options,
+            c.min,
+            c.max,
+            c.step,
+            c.unit,
+            c.state_value_id,
+        )
+        for c in catalog.controls
+    ] == [
+        (
+            c["uniqueId"],
+            c["assistantId"],
+            c["action"],
+            c["platform"],
+            c["name"],
+            c["deviceId"],
+            c["deviceName"],
+            tuple(c["options"]) if c["options"] is not None else None,
+            c["min"],
+            c["max"],
+            c["step"],
+            c["unit"],
+            c["stateValueId"],
+        )
+        for c in expected
+    ]
+    assert {c.platform for c in catalog.controls} == set(const.CONTROL_PLATFORMS)
+    older = {k: v for k, v in contract["examples"]["catalog"].items() if k != "controls"}
+    assert Catalog.from_dict(older).controls == ()
 
 
 # The command ack's 404 (unknown_command, #625) is answered by its own route; every other error

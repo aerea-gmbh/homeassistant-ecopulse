@@ -29,6 +29,7 @@ from .api import (
     EcoPulseAuthError,
     EcoPulseCertificateMismatchError,
     EcoPulseConnectionError,
+    EcoPulseInvalidRequestError,
     EcoPulseNotEnabledError,
     EcoPulseRateLimitedError,
 )
@@ -103,6 +104,8 @@ class EcoPulseStreamCoordinator:
         self._device_of = catalog.device_of()
         # Gateway entities take values like signals but belong to no device (#623).
         self._value_ids = set(self._device_of) | {e.unique_id for e in catalog.gateway_entities}
+        # A control's state is a stream value too (schema 7, #627): its stateValueId.
+        self._value_ids |= {c.state_value_id for c in catalog.controls}
         self.values: dict[str, SignalValue] = {}
         self._device_available: dict[str, bool] = {}
         self.connected = False
@@ -129,6 +132,19 @@ class EcoPulseStreamCoordinator:
             listeners.remove(update)
 
         return remove
+
+    @callback
+    def async_set_value(self, unique_id: str, value: Any) -> None:
+        """#627: the state a control's 202 reports, shown until the stream sends the next one (the
+        stream stays the source: its next value replaces this one)."""
+        current = self.values.get(unique_id)
+        self.values[unique_id] = SignalValue(value, current.ts if current else None)
+        self._notify([unique_id])
+
+    @callback
+    def async_notify_all(self) -> None:
+        """Every entity writes its state again (#627: control was disabled)."""
+        self._notify(self._listeners)
 
     @callback
     def async_set_command_handler(self, handler: Callable[[dict[str, Any]], None]) -> CALLBACK_TYPE:
@@ -190,6 +206,8 @@ class EcoPulseStreamCoordinator:
                 return
             except (
                 EcoPulseConnectionError,
+                # A 400 or 503 on the stream (schema 7 added "unavailable"): reconnect with backoff.
+                EcoPulseInvalidRequestError,
                 EcoPulseNotEnabledError,
                 EcoPulseRateLimitedError,
             ) as err:
