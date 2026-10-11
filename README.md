@@ -237,7 +237,7 @@ The alarm list and `synced_at` are kept out of the recorder.
 ## Installation via HACS
 
 1. In HACS, open the menu (three dots) > *Custom repositories*.
-2. Add `https://github.com/aerea/homeassistant-ecopulse` with category *Integration*.
+2. Add `https://github.com/aerea-gmbh/homeassistant-ecopulse` with category *Integration*.
 3. Install *EcoPulse* and restart Home Assistant.
 
 Manual installation: copy `custom_components/ecopulse` into the `custom_components` folder of your Home Assistant
